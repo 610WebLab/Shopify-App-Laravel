@@ -1,0 +1,9 @@
+.shipping-zones button.Polaris-Button.Polaris-Button--primary { float: right; margin-top: 20px; }
+.tablerateminmax { display: inline-flex; }
+.tablerateminmax .Polaris-Connected__Item.Polaris-Connected__Item--primary { width: 50px; }
+.tableshippingclass .Polaris-ButtonGroup { margin-top: 10px; margin-left: 6px; }
+.tableratefooter { padding-top: 20px; }
+.shipping-rates-rows-table .Polaris-LegacyCard td.Polaris-IndexTable__TableCell .Polaris-ButtonGroup { flex-wrap: inherit; }
+.Polaris-FormLayout__Item .Polaris-Connected { z-index: 0;}
+.Polaris-LegacyCard .Polaris-IndexTable {z-index: 0;}
+p.ship-zone-region { max-width: 520px; white-space: break-spaces; }

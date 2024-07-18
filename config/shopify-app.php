@@ -56,13 +56,13 @@ return [
     */
 
     'route_names' => [
-        'home'                 => env('SHOPIFY_ROUTE_NAME_HOME', 'home'),
-        'authenticate'         => env('SHOPIFY_ROUTE_NAME_AUTHENTICATE', 'authenticate'),
-        'authenticate.token'   => env('SHOPIFY_ROUTE_NAME_AUTHENTICATE_TOKEN', 'authenticate.token'),
-        'billing'              => env('SHOPIFY_ROUTE_NAME_BILLING', 'billing'),
-        'billing.process'      => env('SHOPIFY_ROUTE_NAME_BILLING_PROCESS', 'billing.process'),
+        'home' => env('SHOPIFY_ROUTE_NAME_HOME', 'home'),
+        'authenticate' => env('SHOPIFY_ROUTE_NAME_AUTHENTICATE', 'authenticate'),
+        'authenticate.token' => env('SHOPIFY_ROUTE_NAME_AUTHENTICATE_TOKEN', 'authenticate.token'),
+        'billing' => env('SHOPIFY_ROUTE_NAME_BILLING', 'billing'),
+        'billing.process' => env('SHOPIFY_ROUTE_NAME_BILLING_PROCESS', 'billing.process'),
         'billing.usage_charge' => env('SHOPIFY_ROUTE_NAME_BILLING_USAGE_CHARGE', 'billing.usage_charge'),
-        'webhook'              => env('SHOPIFY_ROUTE_NAME_WEBHOOK', 'webhook'),
+        'webhook' => env('SHOPIFY_ROUTE_NAME_WEBHOOK', 'webhook'),
     ],
 
     /*
@@ -88,11 +88,11 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Namespace
+    | App Namespace
     |--------------------------------------------------------------------------
     |
-    | This option allows you to set a namespace.
-    | Useful for multiple apps using the same database instance.
+    | This option allows you to set a namespace for the users in the DB.
+    | Useful for running multiple apps using the same database instance.
     | Meaning, one shop can be part of many apps on the same database.
     |
     */
@@ -141,6 +141,10 @@ return [
     // Leaving empty will use the latest version - not recommended in production.
     'appbridge_version' => env('SHOPIFY_APPBRIDGE_VERSION', 'latest'),
 
+    // Set a new CDN URL if you want to host the AppBridge JS yourself or unpkg goes down.
+    // DO NOT include a trailing slash.
+    'appbridge_cdn_url' => env('SHOPIFY_APPBRIDGE_CDN_URL', 'https://unpkg.com'),
+
     /*
     |--------------------------------------------------------------------------
     | Shopify App Name
@@ -164,7 +168,7 @@ return [
     |
     */
 
-    'api_version' => env('SHOPIFY_API_VERSION', '2023-04'),
+    'api_version' => env('SHOPIFY_API_VERSION', '2024-01'),
 
     /*
     |--------------------------------------------------------------------------
@@ -175,7 +179,7 @@ return [
     |
     */
 
-    'api_key' => env('SHOPIFY_API_KEY', ''),
+    'api_key' => env('SHOPIFY_API_KEY', '62eb45091b8324bf4e683f9e16b6023e'),
 
     /*
     |--------------------------------------------------------------------------
@@ -186,7 +190,7 @@ return [
     |
     */
 
-    'api_secret' => env('SHOPIFY_API_SECRET', ''),
+    'api_secret' => env('SHOPIFY_API_SECRET', '792edadcff3ab33cbb0ae4e87e893052'),
 
     /*
     |--------------------------------------------------------------------------
@@ -197,7 +201,7 @@ return [
     |
     */
 
-    'api_scopes' => env('SHOPIFY_API_SCOPES', 'read_products,write_products'),
+    'api_scopes' => env('SHOPIFY_API_SCOPES', 'read_script_tags,write_script_tags,read_products,write_products,write_shipping, read_shipping, write_themes, read_themes, write_products, read_products'),
 
     /*
     |--------------------------------------------------------------------------
@@ -233,7 +237,7 @@ return [
     |
     */
 
-    'api_time_store' => env('SHOPIFY_API_TIME_STORE', \Osiset\BasicShopifyAPI\Store\Memory::class),
+    'api_time_store' => env('SHOPIFY_API_TIME_STORE', \Gnikyt\BasicShopifyAPI\Store\Memory::class),
 
     /*
     |--------------------------------------------------------------------------
@@ -245,7 +249,7 @@ return [
     |
     */
 
-    'api_limit_store' => env('SHOPIFY_API_LIMIT_STORE', \Osiset\BasicShopifyAPI\Store\Memory::class),
+    'api_limit_store' => env('SHOPIFY_API_LIMIT_STORE', \Gnikyt\BasicShopifyAPI\Store\Memory::class),
 
     /*
     |--------------------------------------------------------------------------
@@ -257,7 +261,7 @@ return [
     |
     */
 
-    'api_deferrer' => env('SHOPIFY_API_DEFERRER', \Osiset\BasicShopifyAPI\Deferrers\Sleep::class),
+    'api_deferrer' => env('SHOPIFY_API_DEFERRER', \Gnikyt\BasicShopifyAPI\Deferrers\Sleep::class),
 
     /*
     |--------------------------------------------------------------------------
@@ -266,9 +270,9 @@ return [
     |
     | This option is for initializing the BasicShopifyAPI package yourself.
     | The first param injected in is the current options.
-    |    (\Osiset\BasicShopifyAPI\Options)
+    |    (\Gnikyt\BasicShopifyAPI\Options)
     | The second param injected in is the session (if available) .
-    |    (\Osiset\BasicShopifyAPI\Session)
+    |    (\Gnikyt\BasicShopifyAPI\Session)
     | The third param injected in is the current request input/query array.
         (\Illuminate\Http\Request::all())
     | With all this, you can customize the options, change params, and more.
@@ -326,6 +330,42 @@ return [
 
     'billing_redirect' => env('SHOPIFY_BILLING_REDIRECT', '/billing/process'),
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Enable legacy support for features
+    |--------------------------------------------------------------------------
+    |
+    */
+    'app_legacy_supports' => [
+        'after_authenticate_job' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Register listeners to the events
+    |--------------------------------------------------------------------------
+    |
+    */
+
+    'listen' => [
+        \Osiset\ShopifyApp\Messaging\Events\AppInstalledEvent::class => [
+            // \App\Listeners\MyListener::class,
+        ],
+        \Osiset\ShopifyApp\Messaging\Events\ShopAuthenticatedEvent::class => [
+            // \App\Listeners\MyListener::class,
+        ],
+        \Osiset\ShopifyApp\Messaging\Events\ShopDeletedEvent::class => [
+            // \App\Listeners\MyListener::class,
+        ],
+        \Osiset\ShopifyApp\Messaging\Events\AppUninstalledEvent::class => [
+            // \App\Listeners\MyListener::class,
+        ],
+        \Osiset\ShopifyApp\Messaging\Events\PlanActivatedEvent::class => [
+            // \App\Listeners\MyListener::class,
+        ],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Shopify Webhooks
@@ -349,8 +389,18 @@ return [
                 'topic' => env('SHOPIFY_WEBHOOK_2_TOPIC', 'APP_PURCHASES_ONE_TIME_UPDATE'),
                 'address' => env('SHOPIFY_WEBHOOK_2_ADDRESS', 'https://some-app.com/webhook/purchase'),
             ]
-            ...
+            // In certain situations you may wish to map the webhook to a specific class
+            // To do this, change the array to an associative array with a 'class' key
+            'orders-create' => [
+                'topic' => env('SHOPIFY_WEBHOOK_3_TOPIC', 'ORDERS_PAID'),
+                'address' => env('SHOPIFY_WEBHOOK_3_ADDRESS', 'https://some-app.com/webhook/orders-create'),
+                'class' => \App\Shopify\Actions\ExampleAppJob::class
+            ],
         */
+        [
+            'topic' => env('SHOPIFY_WEBHOOK_1_TOPIC', 'APP_UNINSTALLED'),
+            'address' => env('SHOPIFY_WEBHOOK_1_ADDRESS', env('APP_URL').'/webhook/app-uninstalled')
+        ],
     ],
 
     /*
@@ -382,8 +432,13 @@ return [
     | This, like webhooks and scripttag jobs, will fire every time a shop
     | authenticates, not just once.
     |
+    |
     */
 
+    /*
+     * @deprecated This will be removed in the next major version.
+     * @see
+     */
     'after_authenticate_job' => [
         /*
             [
@@ -404,8 +459,8 @@ return [
     */
 
     'job_queues' => [
-        'webhooks'           => env('WEBHOOKS_JOB_QUEUE', null),
-        'scripttags'         => env('SCRIPTTAGS_JOB_QUEUE', null),
+        'webhooks' => env('WEBHOOKS_JOB_QUEUE', null),
+        'scripttags' => env('SCRIPTTAGS_JOB_QUEUE', null),
         'after_authenticate' => env('AFTER_AUTHENTICATE_JOB_QUEUE', null),
     ],
 
@@ -477,6 +532,48 @@ return [
         'shops' => 'users',
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Checking theme compatibility
+    |--------------------------------------------------------------------------
+    |
+    | It is necessary to check if your application is compatible with
+    | the theme app blocks.
+    |
+    */
+
+    'theme_support' => [
+        /*
+         * Specify the name of the template the app will integrate with
+         */
+        'templates' => ['product', 'collection', 'index'],
+        /*
+         * Interval for caching the request: minutes, seconds, hours, days, etc.
+         */
+        'cache_interval' => 'hours',
+        /*
+         * Cache duration
+         */
+        'cache_duration' => '12',
+         /*
+         * At which levels of theme support the use of "theme app extension" is not available
+         * and script tags will be installed.
+         * Available levels: FULL, PARTIAL, UNSUPPORTED.
+         */
+        'unacceptable_levels' => [
+            Osiset\ShopifyApp\Objects\Enums\ThemeSupportLevel::UNSUPPORTED,
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Session token refresh
+    |--------------------------------------------------------------------------
+    |
+    | For AppBridge, how often to refresh the session token for the user.
+    |
+    */
+
     'session_token_refresh_interval' => env('SESSION_TOKEN_REFRESH_INTERVAL', 2000),
 
     /*
@@ -490,4 +587,6 @@ return [
     |
     */
     'frontend_engine' => env('SHOPIFY_FRONTEND_ENGINE', 'BLADE'),
+
+    'iframe_ancestors' => '',
 ];

@@ -1,14 +1,39 @@
-@extends('shopify-app::layouts.default')
-
-@section('content')
-    <!-- You are: (shop domain name) -->
-    <p>You are: {{ $shopDomain ?? Auth::user()->name }}</p>
-@endsection
-
-@section('scripts')
-    @parent
-
+<!DOCTYPE html>
+<html lang="{{ app()->getLocale() }}">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>ShipGrow</title>
     <script>
-        actions.TitleBar.create(app, { title: 'Welcome' });
+        var Config = {
+            shop: "{{$shop}}",
+            apiKey: "{{$apiKey}}",
+            host: new URLSearchParams(location.search).get("host"),
+            forceRedirect: true,
+            shopOrigin:`https://{{$shop}}`,
+            appUrl:"{{$appUrl}}",
+            csrf_token: '<?php echo csrf_token(); ?>'
+        };
     </script>
-@endsection
+        @viteReactRefresh
+        @vite('resources/js/app.jsx')
+</head>
+<body>
+	<div id="root"></div>
+        <!-- <script>
+        const AppBridge = window['app-bridge'];
+        var Config = {
+            shop: "{{$shop}}",
+            apiKey: '{{$apiKey}}',
+            shopOrigin: `{{$shop}}`,
+            host: new URLSearchParams(location.search).get("host"),
+            csrf_token: ''
+        };
+        const app = AppBridge.createApp(Config);
+
+        window.shop = "{{ $shop }}"
+        
+    </script> -->
+        
+</body>
+</html>
