@@ -21,6 +21,7 @@ use App\Traits\TableRateTrait;
 use App\Traits\LocalPickupTrait;
 use App\Traits\FlatRateTrait;
 use Log;
+use DB;
 
 class ShopRedactJob implements ShouldQueue
 {
@@ -88,7 +89,7 @@ class ShopRedactJob implements ShouldQueue
             {
                 foreach($tableRate as $table){
                     if (Tablerateoption::where('table_rate_id', $table->id)->count() > 0) {
-                        tableoption::where('table_rate_id', $table->id)->delete();
+                        Tablerateoption::where('table_rate_id', $table->id)->delete();
                     }
                 }
                 Tablerates::where('user_id', $shop->id)->delete();
