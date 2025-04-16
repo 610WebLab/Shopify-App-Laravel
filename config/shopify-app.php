@@ -154,7 +154,7 @@ return [
     |
     */
 
-    'app_name' => env('SHOPIFY_APP_NAME', 'Shopify App'),
+    'app_name' => env('SHOPIFY_APP_NAME', 'Grow App Dev'),
 
     /*
     |--------------------------------------------------------------------------
@@ -179,7 +179,7 @@ return [
     |
     */
 
-    'api_key' => env('SHOPIFY_API_KEY', '62eb45091b8324bf4e683f9e16b6023e'),
+    'api_key' => env('SHOPIFY_API_KEY', '5c93482684e8643ff1c818f0a1fa96f6'),
 
     /*
     |--------------------------------------------------------------------------
@@ -190,7 +190,7 @@ return [
     |
     */
 
-    'api_secret' => env('SHOPIFY_API_SECRET', '792edadcff3ab33cbb0ae4e87e893052'),
+    'api_secret' => env('SHOPIFY_API_SECRET', 'e85e6c953d453cfb36305da28530d240'),
 
     /*
     |--------------------------------------------------------------------------
@@ -201,7 +201,7 @@ return [
     |
     */
 
-    'api_scopes' => env('SHOPIFY_API_SCOPES', 'read_script_tags,write_script_tags,read_products,write_products,write_shipping, read_shipping, write_themes, read_themes, write_products, read_products'),
+    'api_scopes' => env('SHOPIFY_API_SCOPES', 'read_script_tags,write_script_tags,read_products,write_products,write_shipping, read_shipping, write_themes, read_themes, write_products, read_products,read_customers,write_customers,read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,read_merchant_managed_fulfillment_orders, write_merchant_managed_fulfillment_orders, read_assigned_fulfillment_orders, write_assigned_fulfillment_orders, read_third_party_fulfillment_orders, write_third_party_fulfillment_orders'),
 
     /*
     |--------------------------------------------------------------------------
@@ -304,7 +304,7 @@ return [
     |
     */
 
-    'billing_enabled' => (bool) env('SHOPIFY_BILLING_ENABLED', false),
+    'billing_enabled' => (bool) env('SHOPIFY_BILLING_ENABLED', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -401,6 +401,14 @@ return [
             'topic' => env('SHOPIFY_WEBHOOK_1_TOPIC', 'APP_UNINSTALLED'),
             'address' => env('SHOPIFY_WEBHOOK_1_ADDRESS', env('APP_URL').'/webhook/app-uninstalled')
         ],
+        [
+            'topic' => env('SHOPIFY_WEBHOOK_2_TOPIC', 'ORDERS_UPDATED'),
+            'address' => env('SHOPIFY_WEBHOOK_1_ADDRESS', env('APP_URL').'/webhook/orders-updated')
+        ],
+        [
+            'topic' => env('SHOPIFY_WEBHOOK_3_TOPIC', 'orders-create'),
+            'address' => env('SHOPIFY_WEBHOOK_1_ADDRESS', env('APP_URL').'/webhook/orders-create')
+        ]
     ],
 
     /*

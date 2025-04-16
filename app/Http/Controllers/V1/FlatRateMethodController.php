@@ -21,7 +21,7 @@ class FlatRateMethodController extends Controller
             $saveData = [
                 'user_id' => $shop->id,
                 'zone_id' => $request->zoneId,
-                'shipping_method_id' => $method->id,
+                'shipping_method_id' => @$method->id,
                 'title' => ucwords(str_replace("_", " ", $method->ship_method)),
                 'tax_status' => "taxable",
                 'flat_rate_cost' =>    0,

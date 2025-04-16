@@ -1,5 +1,5 @@
 .shipping-zones button.Polaris-Button.Polaris-Button--primary { float: right; margin-top: 20px; }
-#root .Polaris-Box .Polaris-Page-Header--noBreadcrumbs.Polaris-Page-Header--mediumTitle { background-color: #fff !important; }
+/* #root .Polaris-Box .Polaris-Page-Header--noBreadcrumbs.Polaris-Page-Header--mediumTitle { background-color: #fff !important; } */
 .tablerateminmax { display: inline-flex; }
 .tablerateminmax .Polaris-Connected__Item.Polaris-Connected__Item--primary { width: 50px; }
 .tableshippingclass .Polaris-ButtonGroup { margin-top: 10px; margin-left: 6px; }
@@ -26,3 +26,66 @@ p.ship-zone-method { width: 500px; white-space: normal; }
 .check-box input[type="checkbox"]::after { position: absolute; content: ""; width: 18px; height: 18px; top: 2px; left: 2px; background: #fff; border-radius: 50%; box-shadow: 0 0 5px rgba(0, 0, 0, 0.2); transform: scale(1.1); transition: 0.4s; } 
 .check-box input:checked[type="checkbox"]::after { left: 27px; }
 .check-box span.Polaris-Checkbox__Backdrop, .check-box .Polaris-Checkbox__Icon { display: none; }
+/* button.Polaris-Button.Polaris-Button--plain.Polaris-Button--sizeMicro { display: none; } */
+.Polaris-Filters__Container .Polaris-Box { border: 1px solid #dde0e4; }
+.package-dimension-list table tbody tr td:last-child {width: 127px !important}
+.billing-page .Polaris-Grid { display: flex; flex-wrap: wrap; gap: 15px; }
+.billing-page .Polaris-Grid .Polaris-Grid-Cell { width: 100%; max-width: calc(35.3333% - 50px); }
+.billing-page .Polaris-Grid button.Polaris-Button { background-color: #292929; color: #fff; border: none; box-shadow: none; border-radius: 3px; margin-top: 43px; border: 1px solid #292929; min-width: 166px; line-height: 43px; min-height: 43px; }
+.billing-page .Polaris-Button:hover { background: transparent; box-shadow: none; }
+.billing-page .Polaris-Grid button.Polaris-Button span.Polaris-Text--root a { text-decoration: none; color: #fff; }
+.billing-page .Polaris-Grid button.Polaris-Button:hover span.Polaris-Text--root a{ color: #000 !important; }
+.billing-page .Polaris-LegacyCard__Section {text-align: center; }
+.billing-page .Polaris-LegacyCard__Header h2 { font-size: 26px; font-weight: 800; line-height: 31px; text-align: center; max-width: 170px; margin: 0 auto; }
+.billing-page .Polaris-Button:hover { background: transparent; border: 1px solid #292929; }
+.billing-page .Polaris-Grid .Polaris-LegacyCard .Polaris-LegacyCard__Header { padding-top: 50px; }
+.billing-page .Polaris-Grid .Polaris-LegacyCard .Polaris-LegacyCard__Section { padding:0 50px 33px; }
+.billing-page .table-pricing .pricing-text { display: flex; justify-content: center; padding: 17px 0 0; align-items: baseline; font-size: 17px; color: #626262; }
+.billing-page .table-pricing .pricing-text h2.price-text { font-size: 48px; font-weight: bold; color: #666; }
+.billing-page .Polaris-LegacyCard__Section ul { text-align: left; padding: 0 0 0 16px; min-height: 245px;}
+.billing-page .Polaris-LegacyCard__Section ul li { font-size: 14px; font-weight: 300; line-height: 24px; margin: 0 0 16px 0; }
+.billing-page .Polaris-LegacyCard__Section .table-pricing:first-child { border-bottom: 1px solid #ddd; padding-bottom: 28px; margin: 16px 0 50px 0; }
+.billing-page .Polaris-Page__Content { max-width: 1130px; margin: 0 auto; }
+.billing-page .Polaris-LegacyCard__Section button.Polaris-Button--disabled { background-color: #c3c3c3; color: #919191; border-color: #919191; cursor: not-allowed !important; }
+.billing-page .table-pricing .pricing-text span { font-size: 16px; }
+.billing-page .banner-outer { margin-bottom: 23px; }
+.billing-page .banner-outer .Polaris-BlockStack .Polaris-Box:last-child { padding-top: 20px; padding-bottom: 20px; }
+.billing-page .banner-outer .Polaris-BlockStack .Polaris-Box:last-child p { font-size: 15px; }
+.billing-page .banner-outer .Polaris-BlockStack .Polaris-Box h2.Polaris-Text--root { font-size: 13px; font-weight: bold; }
+nav[aria-label="Pagination"] { display: flex; justify-content: center; align-items: center; gap: 10px; }
+/* 17-march-2025 */
+.template_list td.Polaris-IndexTable__TableCell button.Polaris-Button { margin: 5px 6px; padding: 9px 20px; }
+/* 17-march-2025 */
+.Polaris-Modal-Dialog__Modal {max-width: 540px !important;}
+.Polaris-Modal-Dialog__Modal .Polaris-Modal__Body .Polaris-Box p {text-align: center;}
+.AddCarrierServicesPage .Polaris-Layout, .addshipmethod .Polaris-Layout {margin-top: 5px;}
+.AddCarrierServicesPage .Polaris-IndexTable__Table--unselectable.Polaris-IndexTable__Table--sticky .Polaris-IndexTable__TableCell:first-child {position: unset;}
+.services-page-opt-select .Polaris-Box { border-bottom-left-radius: 0px; border-bottom-right-radius: 0px; }
+.services-page-opt .Polaris-Box { border-top-left-radius: 0px; border-top-right-radius: 0px; }
+
+.Polaris-LegacyCard .Polaris-Tabs__Outer {
+    height: auto;
+}
+.AddCarrierServicesPage .services-page-opt-select .Polaris-Box .Polaris-Grid { grid-template-columns: auto; }
+
+/* start responsive */
+@media(max-width: 1399px) {
+    .billing-page .Polaris-Grid { gap: 24px; }
+    .billing-page .Polaris-Grid .Polaris-Grid-Cell { max-width: calc(33.3333% - 18px); }
+}
+@media(max-width: 1199px){ .billing-page .Polaris-Grid .Polaris-Grid-Cell { max-width: calc(50% - 18px); } }
+@media(max-width: 767px){ .billing-page { max-width: 100%; } }
+@media(max-width: 575px){
+    .billing-page .Polaris-Grid { display: flex !important; flex-wrap: wrap; }
+    .billing-page .Polaris-Grid .Polaris-Grid-Cell { max-width: 100%; }
+    .billing-page .Polaris-LegacyCard__Section ul { min-height: auto; }
+    .billing-page .Polaris-Grid .Polaris-LegacyCard .Polaris-LegacyCard__Section { padding: 0 24px 24px; }
+    .billing-page .Polaris-Grid .Polaris-LegacyCard .Polaris-LegacyCard__Header { padding-top: 24px; }
+    .billing-page .Polaris-LegacyCard__Section .table-pricing:first-child { padding-bottom: 20px; margin: 2px 0 24px; }
+    .billing-page .table-pricing .pricing-text h2.price-text { font-size: 38px; }
+    .billing-page .Polaris-LegacyCard__Header h2 { font-size: 20px; }
+    .billing-page .Polaris-LegacyCard__Section ul { display: flex; flex-wrap: wrap; justify-content: center; }
+    .billing-page .Polaris-LegacyCard__Section ul li { margin: 0 0 10px; }
+    .billing-page .Polaris-Grid button.Polaris-Button { margin-top: 20px; min-width: 130px; line-height: 30px; min-height: 30px; }
+   
+}

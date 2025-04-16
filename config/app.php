@@ -57,7 +57,10 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     'asset_url' => env('ASSET_URL'),
-
+    'carrier_service_api_url' => [
+        'easypost' => 'https://api.easypost.com/v2',
+        'shippo' => 'https://api.goshippo.com'
+    ],
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
@@ -181,6 +184,7 @@ return [
         Illuminate\Translation\TranslationServiceProvider::class,
         Illuminate\Validation\ValidationServiceProvider::class,
         Illuminate\View\ViewServiceProvider::class,
+        Rap2hpoutre\LaravelLogViewer\LaravelLogViewerServiceProvider::class,
 
         /*
          * Package Service Providers...
@@ -194,6 +198,8 @@ return [
         // App\Providers\BroadcastServiceProvider::class,
         App\Providers\EventServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
+        // App\Providers\ShippingServiceProvider::class,
+
 
     ],
 

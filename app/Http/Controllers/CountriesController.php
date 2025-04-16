@@ -2170,6 +2170,29 @@ class CountriesController extends Controller
 
     }
 
+    public function storeCountryAndState() {
+        foreach ($this->getCountries() as $countryCode => $countryName) {
+            if (isset($this->getStates()[$countryCode])) {
+                foreach ($this->getStates()[$countryCode] as $stateCode => $stateName) {
+                    Countries::create([
+                        'country_name' => $countryName,
+                        'country_code' => $countryCode,
+                        'state_name' => $stateName,
+                        'state_code' => $stateCode,
+                    ]);
+                }
+            } else {
+                Countries::create([
+                    'country_name' => $countryName,
+                    'country_code' => $countryCode,
+                    'state_name' => null,
+                    'state_code' => null,
+                ]);
+            }
+        }
+        return "success";
+    }
+
     public function getCountryAndState(Request $request)
     {
         if (!empty($request->country_code)) {

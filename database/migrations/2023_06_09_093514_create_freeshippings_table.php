@@ -19,7 +19,7 @@ return new class extends Migration
             $table->integer('zone_id');
             $table->integer('shipping_method_id');
             $table->string('title');
-            $table->enum('ship_require', ['min_amount', 'coupon', 'either','both']);
+            $table->enum('ship_require', ['none','min_amount', 'coupon', 'either','both']);
             $table->float('order_amount');
             $table->float('discount');
             $table->tinyInteger('status')->default(1);

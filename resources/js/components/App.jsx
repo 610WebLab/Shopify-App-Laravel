@@ -1,17 +1,12 @@
 import React from 'react'
-import AppFrame from '../routing/AppFrame';
-import { Page, Layout, Card, Frame } from '@shopify/polaris';
+import { Page, Frame } from '@shopify/polaris';
+import MenuRoutes from '../routing/MenuRoutes';
 
 const App = () => {
   return (
     <Frame>
-      <Page fullWidth>
-        <AppFrame />
-      </Page>
+        <MenuRoutes />
     </Frame>
   )
 }
-
 export default App
-
-

@@ -1,9 +1,9 @@
 import React from 'react'
 import { IndexTable, LegacyCard, Modal, TextContainer, Page, Toast, Icon, Button, Text, Loading } from '@shopify/polaris';
 import { DeleteMajor, DeleteMinor } from "@shopify/polaris-icons";
-import AddShipZone from './shipzone/AddShipZone';
-import AddTableRates from './tablerates/AddTableRates'
-import ViewShipZone from './shipzone/ViewShipZone';
+// import AddShipZone from './shipzone/AddShipZone';
+// import AddTableRates from './tablerates/AddTableRates'
+// import ViewShipZone from './shipzone/ViewShipZone';
 import CheckboxZoneStatus from './CheckboxZoneStatus';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from "react-router-dom";
@@ -134,7 +134,8 @@ const ShippingZone = () => {
                             `${ship.free_shipping_method.map(m => toTitleCase(m.title)).join(', ')}
                             ${ship.local_pickup_method.map(m => toTitleCase(m.title)).join(', ')}
                             ${ship.table_rate_method.map(m => toTitleCase(m.title)).join(', ')}
-                            ${ship.flat_rate_method.map(m => toTitleCase(m.title)).join(', ')}`
+                            ${ship.flat_rate_method.map(m => toTitleCase(m.title)).join(', ')}
+                            ${ship.rate_by_distance.map(m => toTitleCase(m.title)).join(', ')}`
                         }
                     </p>
                 </IndexTable.Cell>
@@ -197,7 +198,7 @@ const ShippingZone = () => {
                     <TextContainer>
                             <Icon source={DeleteMinor} color="critical" />
                             <Text variant="headingLg" as="h5">
-                                Are you sure? ?
+                                Are you sure ?
                             </Text>
                             <p>
                                 You want be able to delete this!

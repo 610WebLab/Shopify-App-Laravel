@@ -63,5 +63,8 @@ class Kernel extends HttpKernel
         'signed' => \App\Http\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
+        'billable' => \App\Http\Middleware\BillableAPI::class,
+        'monthly_orders' => \App\Http\Middleware\FilterCurrentMonthOrders::class,
+
     ];
 }

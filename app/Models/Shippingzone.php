@@ -33,4 +33,8 @@ class Shippingzone extends Model
     {
         return $this->hasMany(Tablerateoption::class,'zone_id');
     }
+    public function rate_by_distance()
+    {
+        return $this->hasMany(RatesByDistance::class,'zone_id');
+    }
 }
