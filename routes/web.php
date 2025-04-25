@@ -66,7 +66,6 @@ Route::get('/pages/{page}', function (Request $request) {
         ]);
 });
 
-
 Route::post('/shipping/rate', [TestShippingController::class, 'calculateRate']);
 Route::get('/countries',[CountriesController::class, 'index']);
 Route::get('/countryAndState',[CountriesController::class, 'getCountryAndState']);

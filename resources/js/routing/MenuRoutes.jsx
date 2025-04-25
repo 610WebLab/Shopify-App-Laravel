@@ -1,6 +1,5 @@
 import React, { lazy, Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-
+import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
 // Lazy load components
 const LocalShipping = lazy(() => import('../pages/LocalShipping'));
 const AddShipZone = lazy(() => import('../components/shipzone/AddShipZone'));
@@ -17,7 +16,9 @@ const TemplateListPage = lazy(() => import('../pages/settings/templates/Template
 const DimensionListing = lazy(() => import('../pages/settings/dimension/DimensionListing'));
 const CreateUpdateDimension = lazy(() => import('../pages/settings/dimension/CreateUpdateDimension'));
 const BillingPage = lazy(() => import('../pages/BillingPage'));
+
 const MenuRoutes = () => {
+  const location = useLocation();
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <Routes>

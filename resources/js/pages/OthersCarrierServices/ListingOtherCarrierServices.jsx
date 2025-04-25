@@ -8,7 +8,8 @@ import {
   Toast,
   Modal,
   Button,
-  Frame
+  Frame,
+  Loading
 } from '@shopify/polaris';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@shopify/app-bridge-react';
@@ -19,12 +20,15 @@ export default function ListingOtherCarrierServices() {
   const [serviceCarriers, setServiceCarriers] = useState([])
   const [deleteCarrierId, setDeleteCarrierId] = useState(null); // Store carrier id to be deleted
   const [toastMessage, setToastMessage] = useState("");
-
+  const [isLoaded, setIsLoaded] = useState(true);
   const fetchServiceCarriers = async () => {
+
     try {
+      setIsLoaded(false);
       const response = await fetch(`/other-carrier-service?shop=${Config.shop}`);
       const data = await response.json();
       setServiceCarriers(data);
+      setIsLoaded(true);
     } catch (error) {
       console.error("Error fetching carriers:", error);
     }
@@ -90,7 +94,7 @@ export default function ListingOtherCarrierServices() {
         onClick={() => { console.log('Row Click'); }}
       >
         <IndexTable.Cell>
-          {carrier_type ? carrier_type.charAt(0).toUpperCase() + carrier_type.slice(1): ""}
+          {carrier_type ? carrier_type.charAt(0).toUpperCase() + carrier_type.slice(1) : ""}
           <div className="shipping-zone-btn-action">
             <Button plain onClick={() => navigate(`/pages/update-other-careers/${id}/${carrier_type}`)}>Edit</Button>&nbsp;
             <Button plain destructive onClick={() => setDeleteCarrierId(id)}>Delete</Button>
@@ -112,75 +116,78 @@ export default function ListingOtherCarrierServices() {
   );
 
   return (
-    <Page
-      backAction={{ content: 'Products', url: '#' }}
-      title="Carrier Services Listing"
-      primaryAction={{
-        content: 'Add Carrier Services',
-        onAction: () => navigate('/pages/add-other-careers'), // Redirect on click
-      }}
-    >
-      <LegacyCard>
-        <IndexTable
-          resourceName={resourceName}
-          itemCount={serviceCarriers.length}
-          selectedItemsCount={
-            allResourcesSelected ? 'All' : selectedResources.length
-          }
-          onSelectionChange={handleSelectionChange}
-          headings={[
-            { title: 'Name' },
-            { title: 'Api key' },
-            { title: 'Status' },
-            { title: 'Date' },
-          ]}
-          selectable={false}
-        >
-          {rowMarkup}
-        </IndexTable>
-        {deleteCarrierId && (
-          <Modal
-            open={true}
-            onClose={() => setDeleteCarrierId(null)}
-            title="Delete Carrier"
-            primaryAction={{
-              content: 'Delete',
-              destructive: true,
-              onAction: handleDeleteCarrier,
-            }}
-            secondaryActions={[
-              {
-                content: 'Cancel',
-                onAction: () => setDeleteCarrierId(null),
-              },
-            ]}>
-            <Modal.Section>
-              <Text variant="bodyMd">
-                Are you sure you want to delete this carrier?
-              </Text>
-            </Modal.Section>
-          </Modal>
-        )}
+    <>
+      {!isLoaded && <Loading />}
+      <Page
+        backAction={{ content: 'Products', url: '#' }}
+        title="Carrier Services Listing"
+        primaryAction={{
+          content: 'Add Carrier Services',
+          onAction: () => navigate('/pages/add-other-careers'), // Redirect on click
+        }}
+      >
+        <LegacyCard>
+          <IndexTable
+            resourceName={resourceName}
+            itemCount={serviceCarriers.length}
+            selectedItemsCount={
+              allResourcesSelected ? 'All' : selectedResources.length
+            }
+            onSelectionChange={handleSelectionChange}
+            headings={[
+              { title: 'Name' },
+              { title: 'Api key' },
+              { title: 'Status' },
+              { title: 'Date' },
+            ]}
+            selectable={false}
+          >
+            {rowMarkup}
+          </IndexTable>
+          {deleteCarrierId && (
+            <Modal
+              open={true}
+              onClose={() => setDeleteCarrierId(null)}
+              title="Delete Carrier"
+              primaryAction={{
+                content: 'Delete',
+                destructive: true,
+                onAction: handleDeleteCarrier,
+              }}
+              secondaryActions={[
+                {
+                  content: 'Cancel',
+                  onAction: () => setDeleteCarrierId(null),
+                },
+              ]}>
+              <Modal.Section>
+                <Text variant="bodyMd">
+                  Are you sure you want to delete this carrier?
+                </Text>
+              </Modal.Section>
+            </Modal>
+          )}
 
-        {/* Toast Notification */}
-        {toastMessage && (
-          <Frame>
-            <Toast
-              error={toastMessage?.error}
-              content={Array.isArray(toastMessage.message) ? (
-                <ul>
-                  {toastMessage.message.map((msg, index) => (
-                    <li key={index}>{msg}</li>
-                  ))}
-                </ul>
-              ) : (
-                <p>{toastMessage.message}</p>
-              )}
-              onDismiss={() => setToastMessage('')}
-            />
-          </Frame>
-        )}
-      </LegacyCard>
-    </Page>
+          {/* Toast Notification */}
+          {toastMessage && (
+            <Frame>
+              <Toast
+                error={toastMessage?.error}
+                content={Array.isArray(toastMessage.message) ? (
+                  <ul>
+                    {toastMessage.message.map((msg, index) => (
+                      <li key={index}>{msg}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p>{toastMessage.message}</p>
+                )}
+                onDismiss={() => setToastMessage('')}
+              />
+            </Frame>
+          )}
+        </LegacyCard>
+      </Page>
+    </>
   )
 }

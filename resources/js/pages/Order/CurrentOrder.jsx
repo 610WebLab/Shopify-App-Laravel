@@ -20,17 +20,21 @@ import {
   Popover,
   ActionList,
   Pagination,
+  Loading
 } from '@shopify/polaris';
 import axios from "axios";
 import { useToast } from '@shopify/app-bridge-react';
+import {useLocation, useNavigate } from "react-router-dom";
 
 import RatesListingModal from './RatesListingModal'
 
 const CurrentOrder = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { show } = useToast();
   const [optionSelected, setOptionSelected] = useState([]);
   const [popoverActive, setPopoverActive] = useState([]);
-
+  const [isLoaded, setIsLoaded] = useState(false);
   // const togglePopoverActive = useCallback((orderId) => {
   //   // setPopoverActive((popoverActive) => !popoverActive)
   //   setPopoverActive((prev) => ({
@@ -43,6 +47,8 @@ const CurrentOrder = () => {
 
 
   }
+
+  console.log(location.pathname, "Current order");
 
 
   // console.log(popoverActive, "popoverActive")
@@ -827,6 +833,7 @@ const CurrentOrder = () => {
 
   return (
     <>
+    {!loader && <Loading />}
       <LegacyCard>
         <IndexFilters
           queryValue={queryValue}
