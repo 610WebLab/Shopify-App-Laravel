@@ -85,10 +85,10 @@ export default function BillingPage() {
                                             </div>
                                         </div>
                                         <ul>
-
-                                            <li> Generate up to 50 shipping labels per month.</li>
-                                            <li>Perfect for small-scale shipping needs.</li>
-                                            <li> Upgrade anytime for more flexibility.</li>
+                                            <li>Up to 50 labels/month</li>
+                                            <li>Distance & Location Based Rates</li>
+                                            <li>Carrier-Based Rates: UPS, USPS, and more</li>
+                                            <li>Design templates for custom rates</li>
                                         </ul>
                                     </>}
 
@@ -103,14 +103,21 @@ export default function BillingPage() {
                                         <ul>
                                             {(plan.id == 2) ?
                                                 <>
-                                                    <li> Generate up to 100 shipping labels per month.</li>
-                                                    <li> Ideal for growing businesses with frequent shipments.</li>
-                                                    <li>Affordable and efficient for medium-scale operations.</li>
+                                                    <li>Up to 100 labels/month</li>
+                                                    <li>Distance & Location Based Rates</li>
+                                                    <li>Flexible rates for various locations</li>
+                                                    <li>EasyPost, UPS, USPS & more carrier rates</li>
+                                                    <li>Design templates for custom rates</li>
+                                                    <li>Unlimited custom shipping rates</li>
+
                                                 </> :
                                                 <>
-                                                    <li>Enjoy unlimited shipping label generation.</li>
-                                                    <li> Best for high-volume shipping businesses.</li>
-                                                    <li>No restrictions, scale your shipments freely.</li>
+                                                    <li>Unlimited labels/month</li>
+                                                    <li>Distance & Location Based Rates</li>
+                                                    <li>Flexible rates for various locations</li>
+                                                    <li>EasyPost, UPS, USPS & more carrier rates</li>
+                                                    <li>Design templates for custom rates</li>
+                                                    <li>Unlimited custom shipping rates</li>
                                                 </>
 
                                             }

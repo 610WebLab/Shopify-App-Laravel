@@ -82,7 +82,6 @@ class AppUninstalledJob implements ShouldQueue
             } else {
                 throw new \Exception("Shop not found");
             }
-
             // $shopId = $shop->id;
             // User::where('id', $shopId)->delete();
             // $shop1 = User::where('id', $shopId)->first();
@@ -105,7 +104,7 @@ class AppUninstalledJob implements ShouldQueue
             // {
             //     foreach($tableRate as $table){
             //         if (Tablerateoption::where('table_rate_id', $table->id)->count() > 0) {
-            //             tableoption::where('table_rate_id', $table->id)->delete();
+            //             Tablerateoption::where('table_rate_id', $table->id)->delete();
             //         }
             //     }
             //     Tablerates::where('user_id', $shop->id)->delete();

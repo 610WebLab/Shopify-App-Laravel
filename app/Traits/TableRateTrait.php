@@ -3,14 +3,15 @@
 namespace App\Traits;
 use App\Models\Tablerates;
 use App\Traits\FetchShippingZoneTrate;
-
+use Log;
 trait TableRateTrait
 {
     use FetchShippingZoneTrate;
 
-    public function tableRateShipping($country_code, $province_code, $post_code, $price, $weightInGram, $quantity, $lineItem)
+    public function tableRateShipping($country_code, $province_code, $post_code, $price, $weightInGram, $quantity, $lineItem, $shopId)
     {
-        $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code));
+        $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code, $shopId));
+        Log::info("TableRateeeeee", ['zoneId' => $zone]);
         if(!empty($zone)) {
 
             return json_encode($this->calCulateTableRate($zone->id, $price, $weightInGram, $quantity, $lineItem));
@@ -28,6 +29,7 @@ trait TableRateTrait
 
         $result = [];
         // dd($tableRates->toArray());
+        Log::info("TableRateeeeee", ['zoneId' => $zoneID]);
         foreach ($tableRates as $tableRate) {
                 // echo"<pre>";
                 // print_r($tableRate->toArray());

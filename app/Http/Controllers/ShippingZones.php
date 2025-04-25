@@ -45,7 +45,6 @@ class ShippingZones extends Controller
         $quantity = 0;
         $lineItem = 0;
         $checkOutData = $request->all();
-        // Log::info(print_r($checkOutData, true)); 
         $shopId = $checkOutData['shop_id'];
         $country = $checkOutData['rate']['destination']['country'];
         $state = $checkOutData['rate']['destination']['province'];
@@ -59,11 +58,11 @@ class ShippingZones extends Controller
             $quantity = $quantity + $checkout['quantity'];
         }
 
-        $flateRate = json_decode($this->flatRateShipping($country, $state, $postCode), true);
-        $localPickup = json_decode($this->localPickUpShipping($country, $state, $postCode), true);
-        $freeShips = json_decode($this->minimumOrderAmount($price, $country, $state, $postCode), true);
-        $tableRate = json_decode($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem), true);
-        $distanceRate = json_decode($this->DistanceRateShipping($country, $state, $postCode, $address, $price, $weight, $quantity, $lineItem), true);
+        $flateRate = json_decode($this->flatRateShipping($country, $state, $postCode, $shopId), true);
+        $localPickup = json_decode($this->localPickUpShipping($country, $state, $postCode, $shopId), true);
+        $freeShips = json_decode($this->minimumOrderAmount($price, $country, $state, $postCode, $shopId), true);
+        $tableRate = json_decode($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem, $shopId), true);
+        $distanceRate = json_decode($this->DistanceRateShipping($country, $state, $postCode, $address, $price, $weight, $quantity, $lineItem, $shopId), true);
         $easyPostRate = $this->calculateRate('easypost', $shopId, $checkOutData);
         $goShippoRate = $this->calculateRate('shippo', $shopId, $checkOutData);
 
@@ -270,9 +269,10 @@ class ShippingZones extends Controller
                     $resError = json_decode($result, true);
                     if (!empty($resError['errors']) && isset($resError['errors'])) {
                         return json_encode(['status' => 0, 'msg' => $resError['errors']['base'][0]]);
-                    } else {
-                        // dd($resError);
-                    }
+                    } 
+                    // else {
+                    //     // dd($resError);
+                    // }
 
                     // $headers = array();
                     // $headers['Content-Type'] = 'application/json';

@@ -11,9 +11,9 @@ trait DistanceRatesTrait
 {
     use FetchShippingZoneTrate;
 
-    public function DistanceRateShipping($country_code, $province_code, $post_code, $address, $price, $weightInGram, $quantity, $lineItem)
+    public function DistanceRateShipping($country_code, $province_code, $post_code, $address, $price, $weightInGram, $quantity, $lineItem, $shopId)
     {
-        $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code));
+        $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code, $shopId));
         if (!empty($zone)) {
 
             return json_encode($this->calCulateDistanceRate($zone->id, $price, $weightInGram, $quantity, $lineItem, $address));
