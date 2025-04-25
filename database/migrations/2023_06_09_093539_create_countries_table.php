@@ -15,10 +15,10 @@ return new class extends Migration
     {
         Schema::create('countries', function (Blueprint $table) {
             $table->id();
-            $table->string('country_name');
-            $table->string('country_code');
-            $table->string('state_name');
-            $table->string('state_code');
+            $table->string('country_name')->nullable();
+            $table->string('country_code')->nullable();
+            $table->string('state_name')->nullable();
+            $table->string('state_code')->nullable();
             $table->timestamps();
         });
     }

@@ -7,9 +7,9 @@ use App\Traits\FetchShippingZoneTrate;
 trait FlatRateTrait
 {
     use FetchShippingZoneTrate;
-    public function flatRateShipping($country_code, $province_code, $post_code)
+    public function flatRateShipping($country_code, $province_code, $post_code, $shopId)
     {
-        // if ($country_code && $province_code || $post_code) 
+        // if ($country_code && $province_code || $post_code, $shopId) 
         // {
 
             // $state = $country_code.":".$province_code;
@@ -20,7 +20,7 @@ trait FlatRateTrait
             //     $zone = Shippingzone::where('country','')->where('state','')->where('status', 1)->first();
                 
             // }
-            $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code));
+            $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code, $shopId));
            
 
             if(!empty($zone)) {

@@ -4,7 +4,13 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ShippingZones;
 use App\Http\Controllers\CountriesController;
+use App\Http\Controllers\OrderController;
 
+
+
+// header('Access-Control-Allow-Origin: *');
+// header('Access-Control-Allow-Method: POST, GET, OPTIONS, PUT, DELETE');
+// header('Access-Control-Allow-Header: Origin Authorization');
 /*
 |--------------------------------------------------------------------------
 | API Routes
@@ -21,8 +27,10 @@ use App\Http\Controllers\CountriesController;
 // });
 
 Route::group(['prefix' => 'v1'], function () {
-    Route::any('/carrier_service', [ShippingZones::class,'apiResonse']);
+    Route::any('/carrier_service', [ShippingZones::class,'apiResonse'])->name('shipping-rates-webhook');
     Route::any('/shipping_method', [ShippingZones::class,'testTableRateShipping']);
+    Route::any('/print', [OrderController::class,'printOrderDetailsPackingSlip']);
+    Route::any('/template', [OrderController::class,'getTemplatesForOrderDetailPage']);
     // Route::any('/countries',[CountriesController::class, 'index']);
     // Route::get('/orders', function() {
     //     die("weldomeoe";)

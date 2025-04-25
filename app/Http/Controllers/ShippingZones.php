@@ -18,10 +18,23 @@ use App\Traits\FreeShippingTrait;
 use App\Traits\TableRateTrait;
 use App\Traits\LocalPickupTrait;
 use App\Traits\FlatRateTrait;
+use App\Traits\DistanceRatesTrait;
+use App\Models\RatesByDistance;
+use App\Models\OtherCarrierService;
+use Carbon\Carbon;
+use App\Resolvers\ShippingServiceResolver;
+use Exception;
+use DB;
 
 class ShippingZones extends Controller
 {
-    use FreeShippingTrait, LocalPickupTrait, FlatRateTrait, TableRateTrait;
+    use FreeShippingTrait, LocalPickupTrait, FlatRateTrait, TableRateTrait, DistanceRatesTrait;
+    protected $shippingServiceResolver;
+
+    public function __construct(ShippingServiceResolver $shippingServiceResolver)
+    {
+        $this->shippingServiceResolver = $shippingServiceResolver;
+    }
 
     public function apiResonse(Request $request)
     {
@@ -32,10 +45,12 @@ class ShippingZones extends Controller
         $quantity = 0;
         $lineItem = 0;
         $checkOutData = $request->all();
-        // Log::info(print_r($checkOutData, true)); 
+        $shopId = $checkOutData['shop_id'];
         $country = $checkOutData['rate']['destination']['country'];
         $state = $checkOutData['rate']['destination']['province'];
         $postCode = $checkOutData['rate']['destination']['postal_code'];
+        $address = $checkOutData['rate']['destination']['address1'];
+
         $lineItem = count($checkOutData['rate']['items']);
         foreach ($checkOutData['rate']['items'] as $checkout) {
             $price = $price + ($checkout['price'] * $checkout['quantity']);
@@ -43,20 +58,37 @@ class ShippingZones extends Controller
             $quantity = $quantity + $checkout['quantity'];
         }
 
-        $flateRate = json_decode($this->flatRateShipping($country, $state, $postCode), true);
-        $localPickup = json_decode($this->localPickUpShipping($country, $state, $postCode), true);
-        $freeShips = json_decode($this->minimumOrderAmount($price, $country, $state, $postCode), true);
-        $tableRate = json_decode($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem), true);
+        $flateRate = json_decode($this->flatRateShipping($country, $state, $postCode, $shopId), true);
+        $localPickup = json_decode($this->localPickUpShipping($country, $state, $postCode, $shopId), true);
+        $freeShips = json_decode($this->minimumOrderAmount($price, $country, $state, $postCode, $shopId), true);
+        $tableRate = json_decode($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem, $shopId), true);
+        $distanceRate = json_decode($this->DistanceRateShipping($country, $state, $postCode, $address, $price, $weight, $quantity, $lineItem, $shopId), true);
+        $easyPostRate = $this->calculateRate('easypost', $shopId, $checkOutData);
+        $goShippoRate = $this->calculateRate('shippo', $shopId, $checkOutData);
+
+
+        // $body = trim($easyPostRate->body());
+
         Log::info('Carrier services lineItem', ['data' => $lineItem]);
         Log::info(print_r($flateRate, true));
         Log::info(print_r($localPickup, true));
         Log::info(print_r($freeShips, true));
         Log::info(print_r($tableRate, true));
+        // Log::info(print_r($decodedResponse, true));
+        // Log::info(print_r($easyPostRate, true));
+        Log::info("EASYPOST", ['data' => $easyPostRate, 'type' => gettype($easyPostRate)]);
+        Log::info("GOSHIPPO", ['data' => $goShippoRate, 'type' => gettype($goShippoRate)]);
         $shipData = [];
         if ($flateRate) {
             foreach ($flateRate as $flat) {
                 if ($flat['status'] == 1) {
-                    array_push($shipData, $this->createShippingRates($flat['service_name'], $flat['shipPrice'], $flat['description'], $checkOutData['rate']['currency']));
+                    array_push($shipData, $this->createShippingRates(
+                        $flat['service_name'],
+                        "shipping_rates_" . rand(),
+                        $flat['shipPrice'],
+                        $flat['description'],
+                        $checkOutData['rate']['currency']
+                    ));
                 }
             }
         }
@@ -65,7 +97,13 @@ class ShippingZones extends Controller
         if ($localPickup) {
             foreach ($localPickup as $local) {
                 if ($local['status'] == 1) {
-                    array_push($shipData, $this->createShippingRates($local['service_name'], $local['shipPrice'], $local['description'], $checkOutData['rate']['currency']));
+                    array_push($shipData, $this->createShippingRates(
+                        $local['service_name'],
+                        "shipping_rates_" . rand(),
+                        $local['shipPrice'],
+                        $local['description'],
+                        $checkOutData['rate']['currency']
+                    ));
                 }
             }
         }
@@ -73,7 +111,13 @@ class ShippingZones extends Controller
         if ($freeShips) {
             foreach ($freeShips as $free) {
                 if ($free['status'] == 1) {
-                    array_push($shipData, $this->createShippingRates($free['service_name'], $free['shipPrice'], $free['description'], $checkOutData['rate']['currency']));
+                    array_push($shipData, $this->createShippingRates(
+                        $free['service_name'],
+                        "shipping_rates_" . rand(),
+                        $free['shipPrice'],
+                        $free['description'],
+                        $checkOutData['rate']['currency']
+                    ));
                 }
             }
         }
@@ -82,27 +126,94 @@ class ShippingZones extends Controller
             foreach ($tableRate as $table) {
                 foreach ($table as $tblrate) {
                     if ($tblrate['status'] == 1) {
-                        array_push($shipData, $this->createShippingRates($tblrate['service_name'], $tblrate['shipPrice'], $tblrate['description'], $checkOutData['rate']['currency']));
+                        array_push($shipData, $this->createShippingRates(
+                            $tblrate['service_name'],
+                            "shipping_rates_" . rand(),
+                            $tblrate['shipPrice'],
+                            $tblrate['description'],
+                            $checkOutData['rate']['currency']
+                        ));
+                    }
+                }
+            }
+        }
+
+        if ($distanceRate) {
+            foreach ($distanceRate as $distance) {
+                foreach ($distance as $distRate) {
+                    if ($distRate['status'] == 1) {
+                        array_push($shipData, $this->createShippingRates(
+                            $distRate['service_name'],
+                            "shipping_rates_" . rand(),
+                            $distRate['shipPrice'],
+                            $distRate['description'],
+                            $checkOutData['rate']['currency']
+                        ));
+                    }
+                }
+            }
+        }
+        if (!empty($easyPostRate['rate']) && is_array($easyPostRate['rate'])) {
+            if (isset($easyPostRate['service']) && !empty($easyPostRate['service'])) {
+                foreach ($easyPostRate['rate'] as $serviceRate) {
+                    foreach ($serviceRate as $carrier) {
+                        if (!empty($carrier)) {
+                            array_push($shipData, $this->createShippingRates(
+                                $carrier['service'],
+                                $easyPostRate['service'] . "_" . $carrier['carrier'] . "_" . $carrier['service'] . "_" . $carrier['id'],
+                                $carrier['rate'],
+                                "",
+                                $checkOutData['rate']['currency']
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+        if (!empty($goShippoRate['rate']) && is_array($goShippoRate['rate'])) {
+            if (isset($goShippoRate['service']) && !empty($goShippoRate['service'])) {
+                foreach ($goShippoRate['rate'] as $serviceRate) {
+                    foreach ($serviceRate as $carrier) {
+                        if (!empty($carrier)) {
+                            array_push($shipData, $this->createShippingRates(
+                                $carrier['servicelevel']['name'],
+                                $goShippoRate['service'] . "_" . $carrier['provider'] . "_" . $carrier['servicelevel']['name'] . "_" . $carrier['object_id'],
+                                $carrier['amount'],
+                                "",
+                                $checkOutData['rate']['currency']
+                            ));
+                        }
                     }
                 }
             }
         }
 
         $rate['rates'] = $shipData;
+        Log::info(print_r($rate['rates'], true));
         $json = json_encode($rate);
         return response()->json(json_decode($json));
     }
-
-    public function createShippingRates($service_name, $price, $description, $currency)
+    public function calculateRate($service, $shopId, $checkOutData)
+    {
+        try {
+            $packageDetails = OtherCarrierService::where('carrier_type', $service)->where('user_id', $shopId)->where('status', 'active')->get()->toArray();
+            $shippingService = $this->shippingServiceResolver->resolve($service);
+            $rate = $shippingService->getShippingRate($packageDetails, $checkOutData);
+            return ['service' => $service, 'rate' => $rate];
+        } catch (Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 400);
+        }
+    }
+    public function createShippingRates($service_name, $service_code, $price, $description, $currency)
     {
         $data = [
             "service_name" => $service_name,
-            "service_code" => "shipping_rates_" . rand(),
+            "service_code" => $service_code,
             "total_price" => $price * 100,
             "description" => $description,
             "currency" => $currency,
-            "min_delivery_date" => "2013-04-12 14:48:45 -0400",
-            "max_delivery_date" => "2013-04-12 14:48:45 -0400"
+            "min_delivery_date" => Carbon::now()->format('Y-m-d H:i:s O'),
+            "max_delivery_date" => Carbon::now()->format('Y-m-d H:i:s O')
         ];
         return $data;
     }
@@ -147,33 +258,34 @@ class ShippingZones extends Controller
                 if ($shop->status === 'false') {
                     $url = "https://" . $shop->name . "/admin/api/" . env('SHOPIFY_API_VERSION') . "/carrier_services.json";
 
-                        $services['carrier_service']= [
-                            "name" => "Shipping Rates Provider",
-                            "callback_url" => "https://shipping.webziainfotech.com/api/v1/carrier_service",
-                            "service_discovery " => true
-                        ];
+                    $services['carrier_service'] = [
+                        "name" => "Shipping Rates Provider-1",
+                        "callback_url" => route('shipping-rates-webhook') . '?shop_id=' . $shop->id,
+                        "service_discovery " => true
+                    ];
 
-                        $carrierserv = json_encode($services);
-                        $result = $this->carrierServices($url, $carrierserv, $shop->password);
-                        $resError = json_decode($result, true);
-                        if(!empty($resError['errors']) && isset($resError['errors'])){
-                            return json_encode(['status' => 0, 'msg' => $resError['errors']['base'][0]]);
-                        } else {
-                        dd($resError);
-                        }
+                    $carrierserv = json_encode($services);
+                    $result = $this->carrierServices($url, $carrierserv, $shop->password);
+                    $resError = json_decode($result, true);
+                    if (!empty($resError['errors']) && isset($resError['errors'])) {
+                        return json_encode(['status' => 0, 'msg' => $resError['errors']['base'][0]]);
+                    } 
+                    // else {
+                    //     // dd($resError);
+                    // }
 
-                        // $headers = array();
-                        // $headers['Content-Type'] = 'application/json';
-                        // $headers['X-Shopify-Access-Token'] = $shop->password;
-                        // $carrierService = Http::withHeaders($headers)->post($url, $services);
-                        // dd($carrierService->body());
+                    // $headers = array();
+                    // $headers['Content-Type'] = 'application/json';
+                    // $headers['X-Shopify-Access-Token'] = $shop->password;
+                    // $carrierService = Http::withHeaders($headers)->post($url, $services);
+                    // dd($carrierService->body());
 
-                        // $resp = $shop->api()->rest(
-                        //     'POST',
-                        //     '/admin/api/' . env('SHOPIFY_API_VERSION') . 'carrier_services.json',
-                        //     array('carrier_service' => $data)
-                        // )['body'];
-                        // dd(json_decode($resp, true));
+                    // $resp = $shop->api()->rest(
+                    //     'POST',
+                    //     '/admin/api/' . env('SHOPIFY_API_VERSION') . 'carrier_services.json',
+                    //     array('carrier_service' => $data)
+                    // )['body'];
+                    // dd(json_decode($resp, true));
                     // $url = "https://" . $shop->name . "/admin/api/" . env('SHOPIFY_API_VERSION') . "/carrier_services.json";
                     // // dd($url);
                     // $services['carrier_service'] = [
@@ -184,14 +296,14 @@ class ShippingZones extends Controller
 
                     // $carrierserv = json_encode($services);
                     // $result = $this->carrierServices($url, $carrierserv, $shop->password);
-                    // $response = json_decode($result, true);
-                    dd($response);
+                    $response = json_decode($result, true);
+                    // dd($response);
                     if ($response["carrier_service"]) {
                         $shop->status = "true";
                         $shop->save();
                     }
                 }
-                $shop_zone =  Shippingzone::with('local_pickup_method')->with('free_shipping_method')->with('flat_rate_method')->with('table_rate_method')->where('user_id', $shop->id)->get();
+                $shop_zone =  Shippingzone::with('local_pickup_method')->with('free_shipping_method')->with('flat_rate_method')->with('table_rate_method')->with('rate_by_distance')->where('user_id', $shop->id)->get();
                 // $shopZone = Shippingzone::where('user_id', $shop->id)->get();
                 $region = [];
                 foreach ($shop_zone as $zone) {
@@ -222,6 +334,97 @@ class ShippingZones extends Controller
             }
             return json_encode($result);
         }
+    }
+
+    public function getShippingzoneOptions(Request $request)
+    {
+        $input = $request->all();
+        if (isset($input['shop']) && !empty($input['shop'])) {
+            $shop = User::where('name', $input['shop'])->first();
+            if ($shop) {
+                // Retrieve all shipping zones for the shop.
+                $zones = Shippingzone::where('user_id', $shop->id)->get();
+    
+                // For each zone, fetch shipping methods using UNION ALL.
+                foreach ($zones as $zone) {
+                    // Build query for free shipping methods.
+                    $free = Freeshipping::select(
+                                'freeshippings.id',
+                                'freeshippings.title',
+                                'freeshippings.status',
+                                'shippingmethods.ship_method',
+                                'shippingmethods.ship_desc'
+                            )
+                            ->join('shippingmethods', 'freeshippings.shipping_method_id', '=', 'shippingmethods.id')
+                            ->where('zone_id', $zone->id);
+    
+                    // Build query for flat rate methods.
+                    $flat = Flaterate::select(
+                                'flaterates.id',
+                                'flaterates.title',
+                                'flaterates.status',
+                                'shippingmethods.ship_method',
+                                'shippingmethods.ship_desc'
+                            )
+                            ->join('shippingmethods', 'flaterates.shipping_method_id', '=', 'shippingmethods.id')
+                            ->where('zone_id', $zone->id);
+    
+                    // Build query for local pickup methods.
+                    $local = Localpickup::select(
+                                'localpickups.id',
+                                'localpickups.title',
+                                'localpickups.status',
+                                'shippingmethods.ship_method',
+                                'shippingmethods.ship_desc'
+                            )
+                            ->join('shippingmethods', 'localpickups.shipping_method_id', '=', 'shippingmethods.id')
+                            ->where('zone_id', $zone->id);
+    
+                    // Build query for table rate methods.
+                    $table = Tablerates::select(
+                                'tablerates.id',
+                                'tablerates.title',
+                                'tablerates.status',
+                                'shippingmethods.ship_method',
+                                'shippingmethods.ship_desc'
+                            )
+                            ->join('shippingmethods', 'tablerates.shipping_method_id', '=', 'shippingmethods.id')
+                            ->where('zone_id', $zone->id);
+    
+                    // Build query for rate by distance methods.
+                    $distance = RatesByDistance::select(
+                                'rates_by_distances.id',
+                                'rates_by_distances.title',
+                                'rates_by_distances.status',
+                                'shippingmethods.ship_method',
+                                'shippingmethods.ship_desc'
+                            )
+                            ->join('shippingmethods', 'rates_by_distances.shipping_method_id', '=', 'shippingmethods.id')
+                            ->where('zone_id', $zone->id);
+    
+                    // Combine all method queries using unionAll
+                    $methods = $free->unionAll($flat)
+                                   ->unionAll($local)
+                                   ->unionAll($table)
+                                   ->unionAll($distance)
+                                   ->get();
+    
+                    // Attach the merged methods to the zone
+                    $zone->methods = $methods;
+                }
+    
+                $result = [
+                    'status'   => 1,
+                    'shopZone' => $zones,
+                ];
+            } else {
+                $result = [
+                    'status'  => 0,
+                    'message' => 'Shop Not Found',
+                ];
+            }
+            return response()->json($result);
+    }
     }
 
     public function store(Request $request)
@@ -325,7 +528,8 @@ class ShippingZones extends Controller
                     $flat = Flaterate::select('flaterates.id', 'flaterates.title', 'flaterates.status', 'shippingmethods.ship_method', 'shippingmethods.ship_desc')->join('shippingmethods', 'flaterates.shipping_method_id', '=', 'shippingmethods.id')->where('zone_id', $id);
                     $local = Localpickup::select('localpickups.id', 'localpickups.title', 'localpickups.status', 'shippingmethods.ship_method', 'shippingmethods.ship_desc')->join('shippingmethods', 'localpickups.shipping_method_id', '=', 'shippingmethods.id')->where('zone_id', $id);
                     $table = Tablerates::select('tablerates.id', 'tablerates.title', 'tablerates.status', 'shippingmethods.ship_method', 'shippingmethods.ship_desc')->join('shippingmethods', 'tablerates.shipping_method_id', '=', 'shippingmethods.id')->where('zone_id', $id);
-                    $allMethod = $free->unionAll($flat)->unionAll($local)->unionAll($table)->get();
+                    $distance = RatesByDistance::select('rates_by_distances.id', 'rates_by_distances.title', 'rates_by_distances.status', 'shippingmethods.ship_method', 'shippingmethods.ship_desc')->join('shippingmethods', 'rates_by_distances.shipping_method_id', '=', 'shippingmethods.id')->where('zone_id', $id);
+                    $allMethod = $free->unionAll($flat)->unionAll($local)->unionAll($table)->unionAll($distance)->get();
 
 
                     if (!empty($zone_exist)) {
@@ -423,6 +627,13 @@ class ShippingZones extends Controller
                 if ($localPickup) {
                     $localPickup->status = $status;
                     $localPickup->save();
+                    return json_encode(array("status" => 1, 'msg' => 'Shipping Method Status Update Successfully'));
+                }
+            } else if ($input['mthName'] == "rates_by_distance") {
+                $distance = RatesByDistance::find($id);
+                if ($distance) {
+                    $distance->status = $status;
+                    $distance->save();
                     return json_encode(array("status" => 1, 'msg' => 'Shipping Method Status Update Successfully'));
                 }
             } else {

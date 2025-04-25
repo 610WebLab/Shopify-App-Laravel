@@ -14,6 +14,7 @@ const AddShipMethod = ({ showModal, setShowModal, zoneId, setIsRefreshMethodData
         { label: 'Free Shipping', value: 'free_shipping' },
         { label: 'Local Pickup', value: 'local_pickup' },
         { label: 'Table Rates', value: 'table_rate' },
+        { label: 'Rates by Distance', value: 'rates_by_distance' },
     ];
 
     const URLs = {
@@ -21,6 +22,7 @@ const AddShipMethod = ({ showModal, setShowModal, zoneId, setIsRefreshMethodData
         'free_shipping': '/v1/free-rate-shipping',
         'local_pickup': '/v1/local-pickup-shipping',
         'table_rate': '/v1/table-rate-shipping',
+        'rates_by_distance': '/v1/rates_by_distance',
     };
     const [isChecked, setIsChecked] = useState(false);
     const handleCheckbox = useCallback((value) => setIsChecked(value), []);

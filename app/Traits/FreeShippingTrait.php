@@ -9,9 +9,9 @@ trait FreeShippingTrait
 {
    use FetchShippingZoneTrate;
 
-    public function minimumOrderAmount($price, $country_code, $province_code, $post_code)
+    public function minimumOrderAmount($price, $country_code, $province_code, $post_code, $shopId)
     {
-        // if ($country_code && $province_code || $post_code) 
+        // if ($country_code && $province_code || $post_code, $shopId) 
         // {
 
             // $state = $country_code.":".$province_code;
@@ -22,7 +22,7 @@ trait FreeShippingTrait
             //     $zone = Shippingzone::where('country','')->where('state','')->where('status', 1)->first();
                 
             // }
-            $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code));
+            $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code, $shopId));
             if(!empty($zone)) {
 
                 return $this->calCulateFreeShipping($price, $zone->id, $country_code, $province_code);

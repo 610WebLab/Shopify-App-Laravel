@@ -1,7 +1,8 @@
 import React from 'react'
 import {
-    FormLayout, TextField, Loading, Text,
-    Button, IndexTable, LegacyCard, Modal, TextContainer, Checkbox, Icon, FullscreenBar, Toast
+    FormLayout, TextField, Loading, Text, Page,
+    Button, IndexTable, LegacyCard, Modal, TextContainer, Checkbox, Icon, FullscreenBar, Toast,
+    Layout, Card
 } from '@shopify/polaris';
 import { DeleteMajor, DeleteMinor } from "@shopify/polaris-icons";
 import { useState, useCallback, useMemo, useEffect } from 'react';
@@ -41,8 +42,12 @@ const AddShipZone = () => {
     const navigateHome = () => {
         navigate('/');
     };
-    const navigateTableRate = (id) => {
-        navigate('/rate/' + id);
+    const navigateTableRate = (id, shipMethod) => {
+        if (shipMethod === "table_rate") {
+            navigate('/rate/' + id);
+        } else {
+            navigate('/distance/' + id);
+        }
     };
 
     // const [active, setActive] = useState(false);
@@ -164,7 +169,7 @@ const AddShipZone = () => {
             setLocalActiveModel(false);
             setFlatActiveModel(false);
             setFreeActiveModel(false);
-            navigateTableRate(id);
+            navigateTableRate(id, shipMethod);
             return false;
         }
 
@@ -175,6 +180,7 @@ const AddShipZone = () => {
         'free_shipping': '/v1/free-rate-shipping',
         'local_pickup': '/v1/local-pickup-shipping',
         'table_rate': '/v1/table-rate-shipping',
+        'rates_by_distance': '/v1/rates_by_distance',
     };
 
     function delShippingMethod() {
@@ -314,9 +320,7 @@ const AddShipZone = () => {
             }
         }).then(res => res.json()).then((result) => {
             if (result.status === 1) {
-                console.log("Welcome", result.zond_id, result.msg)
                 show(result.msg, { duration: 2000 });
-
                 setZoneId(result.zond_id);
                 // setApiResObj(result);
                 setShowModal(false);
@@ -336,7 +340,7 @@ const AddShipZone = () => {
     };
     return (
         <>
-            {!isLoaded && <Loading />}
+
             {/* <ContextualSaveBar
                 saveAction={saveAction}
                 discardAction={discardAction}
@@ -347,52 +351,137 @@ const AddShipZone = () => {
 
 
             <div className="addshipmethod">
-                <div style={{ width: '100%' }}>
-                    {isFullscreen && fullscreenBarMarkup}
+                <Page backAction={{ content: 'Products', onAction: (() => { navigate('/'); }) }} title={zoneID > 0 ? "Update Shipping Zone" : "Add Shipping Zone"}>
+                    {!isLoaded && <Loading />}
+                    {/* <div style={{ width: '100%' }}> */}
+                    {/* {isFullscreen && fullscreenBarMarkup} */}
                     {/* <div style={{ padding: '1rem' }}></div> */}
-                </div>
-                <LegacyCard sectioned>
-                    <FormLayout>
-                        <TextField
-                            label="Zone Name"
-                            value={zoneName}
-                            onChange={handleZoneNameChange}
-                            autoComplete="off"
-                            placeholder="Zone Name"
-                        />
-                        <label>Zone Regions</label>
-                        <Select
-                            options={optionList}
-                            placeholder="Select regions with in this zone"
-                            value={selectedOptions}
-                            onChange={handleSelect}
-                            isSearchable={true}
-                            isMulti
-                        />
-                        <div className='tc-postcode'>
+                    {/* </div> */}
+                    <Card>
+                        <FormLayout>
                             <TextField
-                                label="Limit to specific ZIP/postcodes"
-                                value={postCode}
-                                onChange={handlePostCodeChange}
-                                multiline={4}
-                                placeholder="List postcode with comma separated"
+                                label="Zone Name"
+                                value={zoneName}
+                                onChange={handleZoneNameChange}
                                 autoComplete="off"
+                                placeholder="Zone Name"
                             />
+                            <label>Zone Regions</label>
+                            <Select
+                                options={optionList}
+                                placeholder="Select regions with in this zone"
+                                value={selectedOptions}
+                                onChange={handleSelect}
+                                isSearchable={true}
+                                isMulti
+                            />
+                            <div className='tc-postcode'>
+                                <TextField
+                                    label="Limit to specific ZIP/postcodes"
+                                    value={postCode}
+                                    onChange={handlePostCodeChange}
+                                    multiline={4}
+                                    placeholder="List postcode with comma separated"
+                                    autoComplete="off"
+                                />
 
-                        </div>
-                        <Checkbox
-                            label="Shipping Zone (Enable/Disable)"
-                            checked={isZoneChecked}
-                            onChange={handleIsZoneChange}
-                        />
-                        {/* <label>Zone Priority</label>
+                            </div>
+                            <Checkbox
+                                label="Shipping Zone (Enable/Disable)"
+                                checked={isZoneChecked}
+                                onChange={handleIsZoneChange}
+                            />
+                            {/* <label>Zone Priority</label>
                         <Select
                             options={zoneOptions}
                             onChange={handleZoneChange}
                             value={zoneSelected}
                         /> */}
-                        <Button primary onClick={saveAction}>Save Shipping Zone</Button>
-                        {/* <Combobox
+                            <Button primary onClick={saveAction}>Save Shipping Zone</Button>
+                        </FormLayout>
+                    </Card>
+                    <Layout>
+                        <Layout.Section>
+                            <LegacyCard>
+                                <LegacyCard.Section>
+                                    <Text variant="headingLg" as="h3">
+                                        Shipping Method
+                                    </Text>
+                                </LegacyCard.Section>
+                                <LegacyCard.Section>
+                                    <LegacyCard>
+                                        <div className='tc-index-table'>
+                                            <IndexTable
+                                                resourceName={resourceName}
+                                                itemCount={customers.length}
+                                                headings={[
+                                                    { title: 'Shipping Method Title' },
+                                                    { title: 'Enabled' },
+                                                    { title: 'Description' },
+                                                ]}
+                                                selectable={false}
+                                            >
+                                                {rowMarkup}
+                                            </IndexTable>
+                                        </div>
+
+                                    </LegacyCard>
+                                    </LegacyCard.Section>
+                                    <LegacyCard.Section>
+                                    <div className='addshipzonetack'>
+                                        <Button primary disabled={!zoneId} onClick={() => {
+                                            //contextualSaveBar.dispatch(ContextualSaveBar.Action.SHOW);
+                                            openShipMethod();
+                                        }}>
+                                            Add Shipping Method
+                                        </Button>
+                                    </div>
+                                </LegacyCard.Section>
+                            </LegacyCard>
+                        </Layout.Section>
+                    </Layout>
+                    {/* <LegacyCard sectioned> */}
+                    {/* <FormLayout>
+                            <TextField
+                                label="Zone Name"
+                                value={zoneName}
+                                onChange={handleZoneNameChange}
+                                autoComplete="off"
+                                placeholder="Zone Name"
+                            />
+                            <label>Zone Regions</label>
+                            <Select
+                                options={optionList}
+                                placeholder="Select regions with in this zone"
+                                value={selectedOptions}
+                                onChange={handleSelect}
+                                isSearchable={true}
+                                isMulti
+                            />
+                            <div className='tc-postcode'>
+                                <TextField
+                                    label="Limit to specific ZIP/postcodes"
+                                    value={postCode}
+                                    onChange={handlePostCodeChange}
+                                    multiline={4}
+                                    placeholder="List postcode with comma separated"
+                                    autoComplete="off"
+                                />
+
+                            </div>
+                            <Checkbox
+                                label="Shipping Zone (Enable/Disable)"
+                                checked={isZoneChecked}
+                                onChange={handleIsZoneChange}
+                            /> */}
+                    {/* <label>Zone Priority</label>
+                        <Select
+                            options={zoneOptions}
+                            onChange={handleZoneChange}
+                            value={zoneSelected}
+                        /> */}
+                    {/* <Button primary onClick={saveAction}>Save Shipping Zone</Button> */}
+                    {/* <Combobox
                             allowMultiple
                             activator={
                                 <Combobox.TextField
@@ -408,7 +497,7 @@ const AddShipZone = () => {
                         >
                             {listboxMarkup}
                         </Combobox> */}
-                        <label>Shipping Method</label>
+                    {/* <label>Shipping Method</label>
                         <LegacyCard>
                             <div className='tc-index-table'>
                                 <IndexTable
@@ -433,10 +522,11 @@ const AddShipZone = () => {
                             }}>
                                 Add Shipping Method
                             </Button>
-                        </div>
+                        </div> */}
 
-                    </FormLayout>
-                </LegacyCard>
+                    {/* </FormLayout> */}
+                    {/* </LegacyCard> */}
+                </Page>
 
 
             </div>

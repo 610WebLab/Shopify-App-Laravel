@@ -17,11 +17,11 @@ return new class extends Migration
             $table->id();
             $table->integer('user_id');
             $table->string('ship_zone');
-            $table->tinyInteger('status');
-            $table->longText('zone_region');
-            $table->longText('country');
-            $table->longText('state');
-            $table->longText('zip');
+            $table->tinyInteger('status')->nullable();;
+            $table->longText('zone_region')->nullable();;
+            $table->longText('country')->nullable();;
+            $table->longText('state')->nullable();;
+            $table->longText('zip')->nullable();
             $table->timestamps();
         });
     }
