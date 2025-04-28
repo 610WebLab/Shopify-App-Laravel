@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Shippingmethod;
 use App\Models\RatesByDistance;
+use Http;
+use GuzzleHttp\Client;
 
 class RatesByDistanceController extends Controller
 {
@@ -129,12 +131,12 @@ class RatesByDistanceController extends Controller
                 'max_distance' => $request->max_distance,
                 'base_delivery_price' => $request->base_delivery_price,
                 'price_per_kilometer' => $request->price_per_kilometer,
-                'weight_unit'=> $request->selectedWeight
+                'weight_unit' => $request->selectedWeight
             ];
             RatesByDistance::where('id', $id)->update($saveData);
-            $result = ['status' => 1,'msg' => 'Shipping Method Successfully Updated'];
+            $result = ['status' => 1, 'msg' => 'Shipping Method Successfully Updated'];
         } else {
-            $result = ['status' => 0,'msg' => 'Shop Not Found'];
+            $result = ['status' => 0, 'msg' => 'Shop Not Found'];
         }
         return response()->json($result);
     }
@@ -154,5 +156,60 @@ class RatesByDistanceController extends Controller
             'msg' => 'Shipping Method Successfully deleted',
         ];
         return json_encode($result);
+    }
+    public function getShopLocations(Request $request)
+    {
+        $shop = User::where('name', $request->shop)->first();
+        if (!empty($shop)) {
+            $endpoint = "https://" . $shop->name . "/admin/api/" . env("SHOPIFY_API_VERSION") . "/graphql.json";
+            $query = <<<GQL
+    {
+      locations(first: 10) {
+        edges {
+          node {
+            id
+            name
+            address {
+              formatted
+              address1
+              address2
+              city
+              province
+              provinceCode
+              country
+              countryCode
+              latitude
+              longitude
+              zip
+            }
+          }
+        }
+      }
+    }
+    GQL;
+            $response = Http::withHeaders([
+                'X-Shopify-Access-Token' => $shop->password,
+                'Content-Type' => 'application/json',
+            ])->post($endpoint, [
+                'query' => $query
+            ]);
+            $result = $response->json();
+            // dd($result);
+            // $locations = $result['data']['locations']['edges'];
+
+            // Initialize an empty array to store the node values
+
+            if (isset($result['data']['locations'])) {
+                $nodeValues = [];
+                foreach ($result['data']['locations']['edges'] as $location) {
+                    $nodeValues[] = $location['node'];
+                }
+                return response()->json(['status' => true, "data" =>  $nodeValues]);
+            } else {
+                return response()->json(['status' => false, "message" => "Location not found"]);
+            }
+        } else {
+            return response()->json(['status' => false, "message" => "Shop not found"]);
+        }
     }
 }
