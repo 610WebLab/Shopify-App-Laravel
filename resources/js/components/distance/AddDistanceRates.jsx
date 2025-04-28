@@ -16,8 +16,6 @@ export default function AddDistanceRates() {
   const navigate = useNavigate();
   const { DistanceID } = useParams();
   const [isLoaded, setIsLoaded] = useState(false);
-
-  console.log('DistanceID', DistanceID)
   // States for select fields
   const [zoneId, setZoneId] = useState(0);
   const [selectedLimitOption, setSelectedLimitOption] = useState('no');
@@ -47,10 +45,10 @@ export default function AddDistanceRates() {
     price_per_kilometer: '',
     _method: ''
   });
-
+  const [shopLocationOption, setShopLocationOption] = useState([]);
+  const [shopLocation, setShopLocation] = useState([]);
   // State for validation errors
   const [errors, setErrors] = useState({});
-
   // Handlers for select fields
   const handleRateLimitChange = useCallback((value) => setSelectedLimitOption(value), []);
   const handleLatitudeLongitudeChange = useCallback((value) => setSelectedLatitudeLongitude(value), []);
@@ -76,25 +74,57 @@ export default function AddDistanceRates() {
   ];
 
   const handleWeightChange = useCallback((value) => setSelectedWeight(value), []);
-  // Generic handler for text fields; updates formData state
   const handleInputChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    setErrors((prev) => ({ ...prev, [field]: '' }));
+    if (field === "location_name") {
+      const matchedLocation = shopLocation.find(location => {
+        const locationId = location.id.replace('gid://shopify/Location/', ''); // Extract the numeric part
+        return locationId === value; // Compare with the target ID
+      });
+      setFormData((prev) => ({
+        ...prev,
+        location_name: value,
+        country_region: matchedLocation ? matchedLocation.address.country : "",
+        city: matchedLocation ? matchedLocation.address.city : "",
+        street: matchedLocation ? matchedLocation.address.address1 : "",
+        postal_code: matchedLocation ? matchedLocation.address.zip : "",
+        latitude: matchedLocation ? matchedLocation.address.latitude : "",
+        longitude: matchedLocation ? matchedLocation.address.longitude : "",
+      }))
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+      setErrors((prev) => ({ ...prev, [field]: '' }));
+    }
   };
+  useEffect(() => {
+    getShopLocations();
+  }, []);
+  async function getShopLocations() {
+    setIsLoaded(false);
+    const response = await fetch(`/v1/locations?shop=${Config.shop}`);
+    const result = await response.json();
+    if (result.status) {
+      setShopLocation(result.data);
+      const formattedLocations = result.data.map((location) => ({
+        label: location.name || '',
+        value: location.id.replace('gid://shopify/Location/', '') || ''
+      }));
+      let defaultopt = { label: 'Custom', value: '' };
+      setShopLocationOption([defaultopt, ...formattedLocations]);
+    } else {
+      console.error("Error fetching locations: ", result.message || "Unknown error");
+    }
+  }
   useEffect(() => {
     if (DistanceID) {
       getDistanceRate();
     }
   }, [DistanceID])
 
-
-
   async function getDistanceRate() {
     setIsLoaded(false);
     const response = await fetch('/v1/rates_by_distance/' + DistanceID);
     const result = await response.json();
     if (result.status == 1) {
-      console.log(result, "getDistanceRate")
       const _distance = result?.distanceRates;
       setFormData({
         location_name: _distance?.location_name,
@@ -146,10 +176,10 @@ export default function AddDistanceRates() {
     if ((data.max_delivery_rate == null || !data.max_delivery_rate.toString().trim()) && selectedLimitOption === "yes") {
       errors.max_delivery_rate = 'Max delivery rate is required';
     }
-    if ((data.latitude == null || !data.latitude.toString().trim()) && selectedLatitudeLongitude === "yes") {
+    if ((data.latitude == null || !data.latitude.toString().trim())) {
       errors.latitude = 'Latitude is required';
     }
-    if ((data.longitude == null || !data.longitude.toString().trim()) && selectedLatitudeLongitude === "yes") {
+    if ((data.longitude == null || !data.longitude.toString().trim())) {
       errors.longitude = 'Longitude is required';
     }
 
@@ -163,7 +193,6 @@ export default function AddDistanceRates() {
 
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      console.log('Validation errors:', validationErrors);
       return;
     }
 
@@ -201,7 +230,6 @@ export default function AddDistanceRates() {
 
   // Create an array of error messages from the errors object
   const errorMessages = Object.values(errors);
-  console.log("FormData:", formData);
   return (
     <Page backAction={{ content: 'Products', onAction: (() => { navigate('/new/' + zoneId); }) }} title="Distance Rate">
       {/* Display errors in a Banner if there are any */}
@@ -247,12 +275,20 @@ export default function AddDistanceRates() {
         {/* Address Section */}
         <Layout.AnnotatedSection
           id="address"
-          title="Address"
-          description="We’ll use this address as a starting point when calculating your delivery rates"
+          title="Store location"
+          description="We’ll use this store location as a starting point when calculating your delivery rates"
         >
           <LegacyCard sectioned>
             <FormLayout>
-              <TextField
+              <Select
+                label="Location name"
+                name="location_name"
+                options={shopLocationOption}
+                onChange={(value) => handleInputChange('location_name', value)}
+                value={formData.location_name}
+                error={errors.location_name}
+              />
+              {/* <TextField
                 label="Location name"
                 type="text"
                 name="location_name"
@@ -260,7 +296,7 @@ export default function AddDistanceRates() {
                 onChange={(value) => handleInputChange('location_name', value)}
                 autoComplete="off"
                 error={errors.location_name}
-              />
+              /> */}
               <TextField
                 label="Country/region"
                 type="text"
@@ -296,6 +332,24 @@ export default function AddDistanceRates() {
                 onChange={(value) => handleInputChange('postal_code', value)}
                 autoComplete="off"
                 error={errors.postal_code}
+              />
+              <TextField
+                label="Latitude"
+                type="number"
+                name="latitude"
+                value={formData.latitude}
+                onChange={(value) => handleInputChange('latitude', value)}
+                autoComplete="off"
+                error={errors.latitude}
+              />
+              <TextField
+                label="Longitude"
+                type="number"
+                name="longitude"
+                value={formData.longitude}
+                onChange={(value) => handleInputChange('longitude', value)}
+                autoComplete="off"
+                error={errors.longitude}
               />
             </FormLayout>
           </LegacyCard>
@@ -334,7 +388,7 @@ export default function AddDistanceRates() {
         </Layout.AnnotatedSection>
 
         {/* Advanced Section */}
-        <Layout.AnnotatedSection
+        {/* <Layout.AnnotatedSection
           id="advanced"
           title="Advanced"
           description="Manually set your location's latitude and longitude if necessary"
@@ -350,29 +404,12 @@ export default function AddDistanceRates() {
               />
               {selectedLatitudeLongitude === 'yes' && (
                 <>
-                  <TextField
-                    label="Latitude"
-                    type="number"
-                    name="latitude"
-                    value={formData.latitude}
-                    onChange={(value) => handleInputChange('latitude', value)}
-                    autoComplete="off"
-                    error={errors.latitude}
-                  />
-                  <TextField
-                    label="Longitude"
-                    type="number"
-                    name="longitude"
-                    value={formData.longitude}
-                    onChange={(value) => handleInputChange('longitude', value)}
-                    autoComplete="off"
-                    error={errors.longitude}
-                  />
+
                 </>
               )}
             </FormLayout>
           </LegacyCard>
-        </Layout.AnnotatedSection>
+        </Layout.AnnotatedSection> */}
 
         {/* Pricing Section */}
         <Layout.AnnotatedSection
@@ -416,14 +453,14 @@ export default function AddDistanceRates() {
                 onChange={handleSelectedRates}
                 value={selectedRates}
               />
-               {selectedRates === 'weight_based_rate' && (
-            
-                  <Select
-                    label="Weight Unit"
-                    options={WeightOptions}
-                    onChange={handleWeightChange}
-                    value={selectedWeight}
-                  />
+              {selectedRates === 'weight_based_rate' && (
+
+                <Select
+                  label="Weight Unit"
+                  options={WeightOptions}
+                  onChange={handleWeightChange}
+                  value={selectedWeight}
+                />
               )}
             </FormLayout>
           </LegacyCard>

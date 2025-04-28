@@ -110,8 +110,8 @@ Route::prefix('v1')->group(function () {
         'show','store','update','destroy'
     ]);
 
+    Route::get('/locations', [RatesByDistanceController::class, 'getShopLocations']);
 });
-
 Route::post('/flatRateShip', [ShippingMethod::class, 'flatRateShip']);
 Route::post('/freeShipping', [ShippingMethod::class, 'freeShipping']);
 Route::resource('/orders',OrderController::class);

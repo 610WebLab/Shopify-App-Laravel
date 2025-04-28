@@ -15,8 +15,8 @@ import {
 } from '@shopify/polaris';
 import { useLocation, Link, useNavigate, useParams } from "react-router-dom";
 import CarrierStatusCheckBox from './CarrierStatusCheckBox';
+export default function AddEasyPost({ selected, setSelected, id }) {
 
-export default function AddShippo({ selected, setSelected, id }) {
   const [apiKey, setApiKey] = useState('');
   const params = useParams();
   const navigate = useNavigate();
@@ -129,6 +129,8 @@ export default function AddShippo({ selected, setSelected, id }) {
     try {
       const response = await fetch(`/other-carrier-service/${id}/edit`);
       const data = await response.json();
+      console.log('datadata', data, data?.data?.api_key)
+
       if (data.success) {
         setApiKey(data?.data?.api_key)
         setStatus(data?.data?.status)
@@ -212,6 +214,7 @@ export default function AddShippo({ selected, setSelected, id }) {
               error={apiKeyError}
               requiredIndicator
             />
+
             {/* Status Select */}
             <Select
               label="Status"
@@ -230,41 +233,40 @@ export default function AddShippo({ selected, setSelected, id }) {
         <Layout.Section>
           <LegacyCard>
             <LegacyCard.Section>
-              {/* <label>Carrier Service</label> */}
               <Text variant="headingLg" as="h3">
                 Carrier Service
               </Text>
             </LegacyCard.Section>
             <LegacyCard.Section>
-              <LegacyCard>
-                <div className='tc-index-table'>
-                  <IndexTable
-                    resourceName={resourceName}
-                    itemCount={carriers.length}
-                    headings={[
-                      { title: 'Name' },
-                      { title: 'Account Id' },
-                      { title: 'Status' },
-                      { title: 'Date' },
-                    ]}
-                    selectable={false}
-                  >
-                    {rowMarkup}
-                  </IndexTable>
-                </div>
-
-              </LegacyCard>
+            <LegacyCard>
+              <div className='tc-index-table'>
+                <IndexTable
+                  resourceName={resourceName}
+                  itemCount={carriers.length}
+                  headings={[
+                    { title: 'Name' },
+                    { title: 'Account Id' },
+                    { title: 'Status' },
+                    { title: 'Date' },
+                  ]}
+                  selectable={false}
+                >
+                  {rowMarkup}
+                </IndexTable>
+              </div>
+            </LegacyCard>
             </LegacyCard.Section>
           </LegacyCard>
+          {/* </Card> */}
         </Layout.Section>
       </Layout>
       {toastActive && (
-          <Toast
-            content={toastContent}
-            error={toastError}
-            onDismiss={toggleToast}
-          />
-        )}
+        <Toast
+          content={toastContent}
+          error={toastError}
+          onDismiss={toggleToast}
+        />
+      )}
     </>
   );
 }

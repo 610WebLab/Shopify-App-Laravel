@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 // import laravel from 'laravel-vite-plugin';
-// import react from '@vitejs/plugin-react';
+import react from '@vitejs/plugin-react';
 export default defineConfig(async () => ({ // Make the defineConfig callback async
     plugins: [
         await import('laravel-vite-plugin').then((module) => // Dynamically import
@@ -13,6 +13,7 @@ export default defineConfig(async () => ({ // Make the defineConfig callback asy
             })
         ),
         // ... other plugins if you have them
+        react(),
     ],
 }));
 
