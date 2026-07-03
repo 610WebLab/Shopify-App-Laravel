@@ -44,8 +44,15 @@ class ShippingZones extends Controller
         $weight = 0;
         $quantity = 0;
         $lineItem = 0;
+
         $checkOutData = $request->all();
+
+        if(!isset($checkOutData['shop_id']) && empty($checkOutData['shop_id'])) {
+            return response()->json(['error' => 'Shop ID is required'], 200);
+        }
+        
         $shopId = $checkOutData['shop_id'];
+
         $country = $checkOutData['rate']['destination']['country'];
         $state = $checkOutData['rate']['destination']['province'];
         $postCode = $checkOutData['rate']['destination']['postal_code'];
@@ -74,6 +81,8 @@ class ShippingZones extends Controller
         Log::info(print_r($localPickup, true));
         Log::info(print_r($freeShips, true));
         Log::info(print_r($tableRate, true));
+        Log::info(print_r($distanceRate, true));
+
         // Log::info(print_r($decodedResponse, true));
         // Log::info(print_r($easyPostRate, true));
         Log::info("EASYPOST", ['data' => $easyPostRate, 'type' => gettype($easyPostRate)]);
@@ -193,6 +202,7 @@ class ShippingZones extends Controller
         $json = json_encode($rate);
         return response()->json(json_decode($json));
     }
+
     public function calculateRate($service, $shopId, $checkOutData)
     {
         try {
