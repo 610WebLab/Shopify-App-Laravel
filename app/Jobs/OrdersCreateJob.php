@@ -67,6 +67,15 @@ class OrdersCreateJob implements ShouldQueue
 
             Log::info('Order Create Webhook', ['shop' => $shop, 'orderId' => $this->data->id]);
             $smallestSortingValue = Dimension::where('user_id', $shop->id)->orderBy('sorting', 'ASC')->first();
+
+            if (!$smallestSortingValue) {
+                Log::warning('Order Create Webhook: No dimensions found for shop', [
+                    'shopDomain' => $this->shopDomain->toNative(),
+                    'shopId' => $shop->id,
+                    'orderId' => $this->data->id,
+                ]);
+            }
+
             $totalQuantity = 0;
             if (isset($this->data->line_items)) {
                 foreach ($this->data->line_items as $lineItem) {
@@ -100,7 +109,7 @@ class OrdersCreateJob implements ShouldQueue
                     'shipping_service' => 0,
                     'carrier_id' => null,
                     'template_id' => null,
-                    'dimension_id'=> $smallestSortingValue->id
+                    'dimension_id' => $smallestSortingValue->id ?? null,
                 ]
             );
 

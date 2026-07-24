@@ -273,17 +273,18 @@ const AddShipZone = () => {
         setIsLoaded(false);
         fetch("/shipzone/" + id + "?shop=" + Config.shop).then(res => res.json()).then((result) => {
             if (result.status === 1) {
-                if (result.zone_mthd) {
-                    setCustomers(result.zone_mthd);
-                    setZoneName(result.zone_exist.ship_zone);
+                if (result.zone_exist) {
+                    setZoneName(result.zone_exist.ship_zone || '');
                     setIsZoneChecked(result.zone_exist.status);
-                    // setZoneSelected({ label: result.zone_exist.preority, value: result.zone_exist.preority });
-                    setCountZone(result.zoneCount);
                     setSelectedOptions(result.zone_exist.zone_region);
-                } else {
-                    setCountZone(result.zoneCount);
+                    setPostCode(result.zone_exist.zip || '');
                 }
 
+                if (result.zone_mthd) {
+                    setCustomers(result.zone_mthd);
+                }
+
+                setCountZone(result.zoneCount);
                 setIsLoaded(true);
             }
         }, (error) => {

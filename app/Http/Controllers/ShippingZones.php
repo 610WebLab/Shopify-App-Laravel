@@ -38,56 +38,88 @@ class ShippingZones extends Controller
 
     public function apiResonse(Request $request)
     {
-        Log::info('Carrier services inPut', ['data' => $request->all()]);
-        $rate = [];
-        $price = 0;
-        $weight = 0;
-        $quantity = 0;
-        $lineItem = 0;
+        try {
+            $checkOutData = $request->all();
+            $shopId = $request->query('shop_id') ?? ($checkOutData['shop_id'] ?? null);
 
-        $checkOutData = $request->all();
+            Log::info('[CarrierService] Incoming request', [
+                'shop_id' => $shopId,
+                'method' => $request->method(),
+                'query' => $request->query(),
+                'has_rate_payload' => isset($checkOutData['rate']),
+                'payload' => $checkOutData,
+            ]);
 
-        if(!isset($checkOutData['shop_id']) && empty($checkOutData['shop_id'])) {
-            return response()->json(['error' => 'Shop ID is required'], 200);
-        }
-        
-        $shopId = $checkOutData['shop_id'];
+            if (empty($shopId)) {
+                Log::warning('[CarrierService] shop_id missing in request');
+                return response()->json(['rates' => []]);
+            }
 
-        $country = $checkOutData['rate']['destination']['country'];
-        $state = $checkOutData['rate']['destination']['province'];
-        $postCode = $checkOutData['rate']['destination']['postal_code'];
-        $address = $checkOutData['rate']['destination']['address1'];
+            if (!isset($checkOutData['rate']['destination']) || !isset($checkOutData['rate']['items'])) {
+                Log::warning('[CarrierService] Invalid Shopify rate payload', [
+                    'shop_id' => $shopId,
+                    'payload_keys' => array_keys($checkOutData),
+                ]);
+                return response()->json(['rates' => []]);
+            }
 
-        $lineItem = count($checkOutData['rate']['items']);
-        foreach ($checkOutData['rate']['items'] as $checkout) {
-            $price = $price + ($checkout['price'] * $checkout['quantity']);
-            $weight = $weight + ($checkout['grams'] * $checkout['quantity']);
-            $quantity = $quantity + $checkout['quantity'];
-        }
+            $rate = [];
+            $price = 0;
+            $weight = 0;
+            $quantity = 0;
+            $lineItem = 0;
 
-        $flateRate = json_decode($this->flatRateShipping($country, $state, $postCode, $shopId), true);
-        $localPickup = json_decode($this->localPickUpShipping($country, $state, $postCode, $shopId), true);
-        $freeShips = json_decode($this->minimumOrderAmount($price, $country, $state, $postCode, $shopId), true);
-        $tableRate = json_decode($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem, $shopId), true);
-        $distanceRate = json_decode($this->DistanceRateShipping($country, $state, $postCode, $address, $price, $weight, $quantity, $lineItem, $shopId), true);
-        $easyPostRate = $this->calculateRate('easypost', $shopId, $checkOutData);
-        $goShippoRate = $this->calculateRate('shippo', $shopId, $checkOutData);
+            $destination = $checkOutData['rate']['destination'];
+            $country = $destination['country'] ?? '';
+            $state = $destination['province'] ?? '';
+            $postCode = $destination['postal_code'] ?? '';
+            $address = $destination['address1'] ?? '';
 
+            Log::info('[CarrierService] Destination parsed', [
+                'shop_id' => $shopId,
+                'country' => $country,
+                'state' => $state,
+                'post_code' => $postCode,
+                'address' => $address,
+                'city' => $destination['city'] ?? '',
+            ]);
 
-        // $body = trim($easyPostRate->body());
+            $lineItem = count($checkOutData['rate']['items']);
+            foreach ($checkOutData['rate']['items'] as $checkout) {
+                $price = $price + ($checkout['price'] * $checkout['quantity']);
+                $weight = $weight + ($checkout['grams'] * $checkout['quantity']);
+                $quantity = $quantity + $checkout['quantity'];
+            }
 
-        Log::info('Carrier services lineItem', ['data' => $lineItem]);
-        Log::info(print_r($flateRate, true));
-        Log::info(print_r($localPickup, true));
-        Log::info(print_r($freeShips, true));
-        Log::info(print_r($tableRate, true));
-        Log::info(print_r($distanceRate, true));
+            Log::info('[CarrierService] Cart summary', [
+                'shop_id' => $shopId,
+                'line_items' => $lineItem,
+                'total_price_cents' => $price,
+                'total_weight_grams' => $weight,
+                'total_quantity' => $quantity,
+                'currency' => $checkOutData['rate']['currency'] ?? null,
+            ]);
 
-        // Log::info(print_r($decodedResponse, true));
-        // Log::info(print_r($easyPostRate, true));
-        Log::info("EASYPOST", ['data' => $easyPostRate, 'type' => gettype($easyPostRate)]);
-        Log::info("GOSHIPPO", ['data' => $goShippoRate, 'type' => gettype($goShippoRate)]);
-        $shipData = [];
+            $flateRate = $this->decodeShippingResult($this->flatRateShipping($country, $state, $postCode, $shopId));
+            $localPickup = $this->decodeShippingResult($this->localPickUpShipping($country, $state, $postCode, $shopId));
+            $freeShips = $this->decodeShippingResult($this->minimumOrderAmount($price, $country, $state, $postCode, $shopId));
+            $tableRate = $this->decodeShippingResult($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem, $shopId));
+            $distanceRate = $this->decodeShippingResult($this->DistanceRateShipping($country, $state, $postCode, $address, $price, $weight, $quantity, $lineItem, $shopId));
+            $easyPostRate = $this->calculateRate('easypost', $shopId, $checkOutData);
+            $goShippoRate = $this->calculateRate('shippo', $shopId, $checkOutData);
+
+            Log::info('[CarrierService] Rate sources resolved', [
+                'shop_id' => $shopId,
+                'flat_rate_count' => is_array($flateRate) ? count($flateRate) : 0,
+                'local_pickup_count' => is_array($localPickup) ? count($localPickup) : 0,
+                'free_shipping_count' => is_array($freeShips) ? count($freeShips) : 0,
+                'table_rate_count' => is_array($tableRate) ? count($tableRate) : 0,
+                'distance_rate_count' => is_array($distanceRate) ? count($distanceRate) : 0,
+                'easypost' => $easyPostRate,
+                'goshippo' => $goShippoRate,
+            ]);
+
+            $shipData = [];
         if ($flateRate) {
             foreach ($flateRate as $flat) {
                 if ($flat['status'] == 1) {
@@ -197,10 +229,42 @@ class ShippingZones extends Controller
             }
         }
 
-        $rate['rates'] = $shipData;
-        Log::info(print_r($rate['rates'], true));
-        $json = json_encode($rate);
-        return response()->json(json_decode($json));
+            $rate['rates'] = $shipData;
+
+            Log::info('[CarrierService] Final response', [
+                'shop_id' => $shopId,
+                'rates_count' => count($shipData),
+                'rates' => $shipData,
+            ]);
+
+            return response()->json($rate);
+        } catch (Exception $e) {
+            Log::error('[CarrierService] Unhandled exception', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json(['rates' => []]);
+        }
+    }
+
+    private function decodeShippingResult($result)
+    {
+        if (is_array($result)) {
+            return $result;
+        }
+
+        if (is_string($result)) {
+            return json_decode($result, true) ?? [];
+        }
+
+        if (is_object($result) && method_exists($result, 'getContent')) {
+            return json_decode($result->getContent(), true) ?? [];
+        }
+
+        return [];
     }
 
     public function calculateRate($service, $shopId, $checkOutData)
@@ -271,7 +335,7 @@ class ShippingZones extends Controller
                     $services['carrier_service'] = [
                         "name" => "Shipping Rates Provider-1",
                         "callback_url" => route('shipping-rates-webhook') . '?shop_id=' . $shop->id,
-                        "service_discovery " => true
+                        "service_discovery" => true
                     ];
 
                     $carrierserv = json_encode($services);
@@ -498,8 +562,22 @@ class ShippingZones extends Controller
             $ship_zone->user_id = $shop->id;
             $ship_zone->ship_zone = $request->shipzone;
             $ship_zone->status = $request->status;
-            $ship_zone->zone_region = json_encode($request->region); //implode(",", $request->region);
-            // $ship_zone->preority = $request->preority['value'];
+            if (empty($country) && empty($state) && !empty($request->region)) {
+                foreach ($request->region as $regionItem) {
+                    $code = is_array($regionItem) ? ($regionItem['value'] ?? '') : $regionItem;
+                    if (empty($code)) {
+                        continue;
+                    }
+                    $parts = explode(':', $code);
+                    if (count($parts) >= 2) {
+                        $state[] = $code;
+                    } else {
+                        $country[] = $code;
+                    }
+                }
+            }
+
+            $ship_zone->zone_region = json_encode($request->region);
             $ship_zone->country = implode(",", $country);
             $ship_zone->state = implode(",", $state);
             $ship_zone->zip = $request->postcode;

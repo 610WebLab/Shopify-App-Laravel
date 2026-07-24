@@ -244,7 +244,7 @@ class CountriesController extends Controller
             'UG' =>  'Uganda',
             'UA' =>  'Ukraine',
             'AE' =>  'United Arab Emirates',
-            'GB' =>  'United Kingdom (UK)',
+            'GB' =>  'United Kingdom',
             'US' =>  'United States (US)',
             'UM' =>  'United States (US) Minor Outlying Islands',
             'UY' =>  'Uruguay',
@@ -267,6 +267,15 @@ class CountriesController extends Controller
     public function getStates()
     {
         return array(
+            'AE' => array( // United Arab Emirates - Shopify province codes.
+                'AZ' => 'Abu Dhabi',
+                'AJ' => 'Ajman',
+                'DU' => 'Dubai',
+                'FU' => 'Fujairah',
+                'RK' => 'Ras al-Khaimah',
+                'SH' => 'Sharjah',
+                'UQ' => 'Umm al-Quwain',
+            ),
             'AF' => array(),
             'AO' => array( // Angola states.
                 'BGO' => 'Bengo',
@@ -729,6 +738,13 @@ class CountriesController extends Controller
             ),
             'FI' => array(),
             'FR' => array(),
+            'GB' => array( // United Kingdom - Shopify constituent countries.
+                'ENG' => 'England',
+                'NIR' => 'Northern Ireland',
+                'SCT' => 'Scotland',
+                'WLS' => 'Wales',
+                'BFP' => 'British Forces',
+            ),
             'GF' => array(),
             'GH' => array( // Ghanaian Regions.
                 'AF' => 'Ahafo',
@@ -880,12 +896,17 @@ class CountriesController extends Controller
                 'WX' => 'Wexford',
                 'WW' => 'Wicklow',
             ),
-            'IN' => array( // Indian states.
+            'IN' => array( // Indian states - Shopify province codes.
+                'AN' => 'Andaman and Nicobar Islands',
                 'AP' => 'Andhra Pradesh',
                 'AR' => 'Arunachal Pradesh',
                 'AS' => 'Assam',
                 'BR' => 'Bihar',
-                'CT' => 'Chhattisgarh',
+                'CH' => 'Chandigarh',
+                'CG' => 'Chhattisgarh',
+                'DN' => 'Dadra and Nagar Haveli',
+                'DD' => 'Daman and Diu',
+                'DL' => 'Delhi',
                 'GA' => 'Goa',
                 'GJ' => 'Gujarat',
                 'HR' => 'Haryana',
@@ -895,6 +916,7 @@ class CountriesController extends Controller
                 'KA' => 'Karnataka',
                 'KL' => 'Kerala',
                 'LA' => 'Ladakh',
+                'LD' => 'Lakshadweep',
                 'MP' => 'Madhya Pradesh',
                 'MH' => 'Maharashtra',
                 'MN' => 'Manipur',
@@ -902,22 +924,16 @@ class CountriesController extends Controller
                 'MZ' => 'Mizoram',
                 'NL' => 'Nagaland',
                 'OR' => 'Odisha',
+                'PY' => 'Puducherry',
                 'PB' => 'Punjab',
                 'RJ' => 'Rajasthan',
                 'SK' => 'Sikkim',
                 'TN' => 'Tamil Nadu',
                 'TS' => 'Telangana',
                 'TR' => 'Tripura',
-                'UK' => 'Uttarakhand',
                 'UP' => 'Uttar Pradesh',
+                'UK' => 'Uttarakhand',
                 'WB' => 'West Bengal',
-                'AN' => 'Andaman and Nicobar Islands',
-                'CH' => 'Chandigarh',
-                'DN' => 'Dadra and Nagar Haveli',
-                'DD' => 'Daman and Diu',
-                'DL' => 'Delhi',
-                'LD' => 'Lakshadeep',
-                'PY' => 'Pondicherry (Puducherry)',
             ),
             'IR' => array( // Iran States.
                 'KHZ' => 'Khuzestan  (خوزستان)',
@@ -2000,7 +2016,7 @@ class CountriesController extends Controller
                 'DE' => 'Delaware',
                 'DC' => 'District Of Columbia',
                 'FL' => 'Florida',
-                'GA' => 'Georgia', 'US state of Georgia',
+                'GA' => 'Georgia',
                 'HI' => 'Hawaii',
                 'ID' => 'Idaho',
                 'IL' => 'Illinois',
@@ -2159,38 +2175,140 @@ class CountriesController extends Controller
 
 
 
-        $result = [];
-        $country = Countries::select('countries.*')->get();
+        $country = Countries::select('countries.*')
+            ->whereIn('id', function ($query) {
+                $query->selectRaw('MIN(id)')
+                    ->from('countries')
+                    ->groupBy('country_code', 'state_code');
+            })
+            ->orderBy('country_name')
+            ->orderBy('state_name')
+            ->get();
+
         return json_encode([
             'status' => 1,
             'country' => $country->toArray()
         ]);
 
-        return json_encode($result);
-
     }
 
-    public function storeCountryAndState() {
+    public function storeCountryAndState()
+    {
+        $added = 0;
+        $updated = 0;
+        $removed = $this->removeDuplicateCountries();
+        $states = $this->getStates();
+
         foreach ($this->getCountries() as $countryCode => $countryName) {
-            if (isset($this->getStates()[$countryCode])) {
-                foreach ($this->getStates()[$countryCode] as $stateCode => $stateName) {
+            if (isset($states[$countryCode]) && !empty($states[$countryCode])) {
+                foreach ($states[$countryCode] as $stateCode => $stateName) {
+                    $existing = Countries::where('country_code', $countryCode)
+                        ->where('state_code', $stateCode)
+                        ->first();
+
+                    if ($existing) {
+                        $existing->fill([
+                            'country_name' => $countryName,
+                            'state_name' => $stateName,
+                            'state_code' => $stateCode,
+                        ]);
+
+                        if ($existing->isDirty()) {
+                            $existing->save();
+                            $updated++;
+                        }
+                        continue;
+                    }
+
                     Countries::create([
                         'country_name' => $countryName,
                         'country_code' => $countryCode,
                         'state_name' => $stateName,
                         'state_code' => $stateCode,
                     ]);
+                    $added++;
                 }
+
+                Countries::where('country_code', $countryCode)
+                    ->where(function ($query) {
+                        $query->whereNull('state_code')->orWhere('state_code', '');
+                    })
+                    ->delete();
             } else {
+                $existing = Countries::where('country_code', $countryCode)
+                    ->where(function ($query) {
+                        $query->whereNull('state_code')->orWhere('state_code', '');
+                    })
+                    ->first();
+
+                if ($existing) {
+                    $existing->fill([
+                        'country_name' => $countryName,
+                        'state_name' => '',
+                        'state_code' => '',
+                    ]);
+
+                    if ($existing->isDirty()) {
+                        $existing->save();
+                        $updated++;
+                    }
+                    continue;
+                }
+
+                if (Countries::where('country_code', $countryCode)->exists()) {
+                    continue;
+                }
+
                 Countries::create([
                     'country_name' => $countryName,
                     'country_code' => $countryCode,
-                    'state_name' => null,
-                    'state_code' => null,
+                    'state_name' => '',
+                    'state_code' => '',
                 ]);
+                $added++;
             }
         }
-        return "success";
+
+        $removed += $this->removeDuplicateCountries();
+
+        return response()->json([
+            'status' => 1,
+            'msg' => 'Countries and regions synced successfully',
+            'added' => $added,
+            'updated' => $updated,
+            'duplicates_removed' => $removed,
+        ]);
+    }
+
+    private function removeDuplicateCountries()
+    {
+        $removed = 0;
+
+        $duplicateGroups = Countries::select('country_code', 'state_code')
+            ->selectRaw('COUNT(*) as total')
+            ->groupBy('country_code', 'state_code')
+            ->having('total', '>', 1)
+            ->get();
+
+        foreach ($duplicateGroups as $group) {
+            $keepId = Countries::where('country_code', $group->country_code)
+                ->where('state_code', $group->state_code)
+                ->orderBy('id', 'asc')
+                ->value('id');
+
+            if (!$keepId) {
+                continue;
+            }
+
+            $deleted = Countries::where('country_code', $group->country_code)
+                ->where('state_code', $group->state_code)
+                ->where('id', '!=', $keepId)
+                ->delete();
+
+            $removed += $deleted;
+        }
+
+        return $removed;
     }
 
     public function getCountryAndState(Request $request)
