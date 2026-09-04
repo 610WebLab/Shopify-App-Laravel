@@ -1,0 +1,41 @@
+client_id = "07f08406a5b127898d97a0cfdc3674fd"
+application_url = "https://superb-peacock-nearby.ngrok-free.app"
+embedded = true
+name = "ShipGrow Dev"
+
+[access_scopes]
+scopes = "read_assigned_fulfillment_orders,write_assigned_fulfillment_orders,read_customers,write_customers,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,read_orders,write_orders,read_products,write_products,read_script_tags,write_script_tags,read_shipping,write_shipping,read_themes,write_themes,read_third_party_fulfillment_orders,write_third_party_fulfillment_orders"
+optional_scopes = []
+use_legacy_install_flow = true
+
+[auth]
+redirect_urls = [
+  "https://superb-peacock-nearby.ngrok-free.app/authenticate",
+]
+
+[app_proxy]
+url = "https://superb-peacock-nearby.ngrok-free.app/api"
+subpath = "api"
+prefix = "apps"
+
+[webhooks]
+api_version = "2026-07"
+
+# Mandatory compliance webhooks (public apps): add URIs once Laravel routes exist,
+# or configure them in the Partners dashboard. Example:
+# [[webhooks.subscriptions]]
+# compliance_topics = ["customers/data_request"]
+# uri = "https://superb-peacock-nearby.ngrok-free.app/webhooks/gdpr/customers-data-request"
+
+
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/data_request"]
+uri = "https://superb-peacock-nearby.ngrok-free.app/webhook/customers-data-request"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["customers/redact"]
+uri = "https://superb-peacock-nearby.ngrok-free.app/webhook/customers-redact"
+
+[[webhooks.subscriptions]]
+compliance_topics = ["shop/redact"]
+uri = "https://superb-peacock-nearby.ngrok-free.app/webhook/shop-redact"

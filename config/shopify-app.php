@@ -201,7 +201,7 @@ return [
     |
     */
 
-    'api_scopes' => env('SHOPIFY_API_SCOPES', 'read_script_tags,write_script_tags,read_products,write_products,write_shipping, read_shipping, write_themes, read_themes, write_products, read_products,read_customers,write_customers,read_orders,write_orders,read_fulfillments,write_fulfillments,read_customers,read_merchant_managed_fulfillment_orders, write_merchant_managed_fulfillment_orders, read_assigned_fulfillment_orders, write_assigned_fulfillment_orders, read_third_party_fulfillment_orders, write_third_party_fulfillment_orders'),
+    'api_scopes' => env('SHOPIFY_API_SCOPES', 'read_script_tags,write_script_tags,read_products,write_products,write_shipping,read_shipping,write_themes,read_themes,read_customers,write_customers,read_orders,write_orders,read_fulfillments,write_fulfillments,read_merchant_managed_fulfillment_orders,write_merchant_managed_fulfillment_orders,read_assigned_fulfillment_orders,write_assigned_fulfillment_orders,read_third_party_fulfillment_orders,write_third_party_fulfillment_orders'),
 
     /*
     |--------------------------------------------------------------------------
