@@ -281,7 +281,7 @@ return [
     |
     */
 
-    'api_init' => null,
+    'api_init' => [\App\Shopify\ApiInitializer::class, 'initialize'],
 
     /*
     |--------------------------------------------------------------------------

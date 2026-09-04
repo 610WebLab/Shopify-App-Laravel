@@ -338,9 +338,11 @@ class ShippingZones extends Controller
                         "service_discovery" => true
                     ];
 
+               
                     $carrierserv = json_encode($services);
                     $result = $this->carrierServices($url, $carrierserv, $shop->password);
                     $resError = json_decode($result, true);
+             
                     if (!empty($resError['errors']) && isset($resError['errors'])) {
                         return json_encode(['status' => 0, 'msg' => $resError['errors']['base'][0]]);
                     } 
@@ -371,8 +373,7 @@ class ShippingZones extends Controller
                     // $carrierserv = json_encode($services);
                     // $result = $this->carrierServices($url, $carrierserv, $shop->password);
                     $response = json_decode($result, true);
-                    // dd($response);
-                    if ($response["carrier_service"]) {
+                    if (isset($response["carrier_service"]) && !empty($response["carrier_service"])) {
                         $shop->status = "true";
                         $shop->save();
                     }
