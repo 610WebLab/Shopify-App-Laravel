@@ -213,7 +213,7 @@ trait DistanceRatesTrait
     public function getDistanceMatrix($origin, $destination)
     {
 
-        $apiKey = env('GOOGLE_MAP_API_KEY');
+        $apiKey = config('app.google_map_api_key');
         $response = Http::get('https://maps.googleapis.com/maps/api/distancematrix/json', [
             'units'       => 'metric',
             'origins'     => $origin,

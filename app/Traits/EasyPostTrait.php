@@ -114,9 +114,8 @@ trait EasyPostTrait
 
     private function getEasyPostActiveAccount($apiKey)
     {
-        $easypostUrl = env('EASY_POST_BASE_URL');
+        $easypostUrl = config('app.carrier_service_api_url.easypost');
         $encodedApiKey = base64_encode($apiKey . ':');
-        // dd($easypostUrl, $encodedApiKey, config('app.carrier_service_base_url.easypost'));
         $response = Http::withHeaders([
             'Content-Type' => 'application/json',
             'Authorization' => 'Basic ' . $encodedApiKey,

@@ -9,12 +9,13 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Osiset\ShopifyApp\Objects\Values\ShopDomain;
 use stdClass;
-use App\Models\Order;
+use App\Models\User;
+use App\Traits\SyncsShopifyOrderTrait;
 use Log;
 
 class OrdersUpdatedJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels, SyncsShopifyOrderTrait;
 
     /**
      * Shop's myshopify domain
@@ -51,22 +52,30 @@ class OrdersUpdatedJob implements ShouldQueue
      */
     public function handle()
     {
-        // Convert domain
-        $this->shopDomain = ShopDomain::fromNative($this->shopDomain);
+        try {
+            set_time_limit(0);
 
-        $order =  $this->data; // fulfillment_status
-        log::info("Triggred Order Updated webhook", ['data' => $order]);
-        if ($order) {
-            if (!empty($order->cancelled_at)) {
-                Order::where('order_id', $order->id)->update([
-                    'fullfilement' => "Canceled"
-                ]);
-            }else{
-                Order::where('order_id', $order->id)->update([
-                    'fullfilement' => ucfirst($order->fulfillment_status)
-                ]);
+            $this->shopDomain = ShopDomain::fromNative($this->shopDomain);
+            $shop = User::where('name', $this->shopDomain->toNative())->first();
+
+            if (!$shop) {
+                Log::error('Order Update Webhook: Shop not found', ['shopDomain' => $this->shopDomain->toNative()]);
+                return;
             }
-            
+
+            Log::info('Order Update Webhook', ['shop' => $shop->name, 'orderId' => $this->data->id]);
+
+            $this->syncShopifyOrder($shop, $this->data);
+
+            Log::info('Order successfully updated', ['orderId' => $this->data->id]);
+        } catch (\Exception $e) {
+            Log::error('Error processing order update webhook', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'shopDomain' => is_object($this->shopDomain) ? $this->shopDomain->toNative() : $this->shopDomain,
+                'orderId' => $this->data->id ?? null,
+            ]);
         }
     }
 }

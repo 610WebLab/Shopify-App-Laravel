@@ -51,7 +51,7 @@ trait ShopifyGetOrderDetailsTrait
         
 
         $client = new Client();
-       $shopifyUrl = "https://".$shop->name."/admin/api/".env('SHOPIFY_API_VERSION')."/graphql.json";
+       $shopifyUrl = "https://".$shop->name."/admin/api/".config('shopify-app.api_version')."/graphql.json";
 
         return $client->post($shopifyUrl, [
             'headers' => [

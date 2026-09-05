@@ -57,9 +57,13 @@ return [
     'url' => env('APP_URL', 'http://localhost'),
 
     'asset_url' => env('ASSET_URL'),
+
+    'google_map_api_key' => env('GOOGLE_MAP_API_KEY'),
+
+
     'carrier_service_api_url' => [
-        'easypost' => 'https://api.easypost.com/v2',
-        'shippo' => 'https://api.goshippo.com'
+        'easypost' => env('EASY_POST_BASE_URL',"https://api.easypost.com/v2"),
+        'shippo' => env('SHIPPO_BASE_URL',"https://api.goshippo.com")
     ],
     /*
     |--------------------------------------------------------------------------
