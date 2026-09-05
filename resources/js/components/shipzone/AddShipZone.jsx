@@ -1,96 +1,76 @@
-import React from 'react'
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
-    FormLayout, TextField, Loading, Text, Page,
-    Button, IndexTable, LegacyCard, Modal, TextContainer, Checkbox, Icon, FullscreenBar, Toast,
-    Layout, Card
+    FormLayout,
+    TextField,
+    Loading,
+    Text,
+    Page,
+    Button,
+    IndexTable,
+    Modal,
+    TextContainer,
+    Icon,
+    Layout,
+    Card,
+    Badge,
+    Box,
+    Spinner,
+    EmptyState,
+    VerticalStack,
+    HorizontalStack,
+    ButtonGroup,
 } from '@shopify/polaris';
-import { DeleteMajor, DeleteMinor } from "@shopify/polaris-icons";
-import { useState, useCallback, useMemo, useEffect } from 'react';
-import { useLocation, Link, useNavigate, useParams } from "react-router-dom";
-
-import { ContextualSaveBar } from '@shopify/app-bridge-react';
-import CheckboxMethodStatus from './CheckboxMethodStatus';
+import { DeleteMinor } from '@shopify/polaris-icons';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useToast } from '@shopify/app-bridge-react';
 import axios from 'axios';
-import Select from "react-select";
+import Select from 'react-select';
 import LocalPickup from '../localpickup/LocalPickup';
 import FlatRate from '../flatrate/FlatRate';
 import FreeShipping from '../freeshipping/FreeShipping';
-
 import AddShipMethod from './AddShipMethod';
+import CheckboxMethodStatus from './CheckboxMethodStatus';
+
+const METHOD_URLS = {
+    flat_rate: '/v1/flat-rate-shipping',
+    free_shipping: '/v1/free-rate-shipping',
+    local_pickup: '/v1/local-pickup-shipping',
+    table_rate: '/v1/table-rate-shipping',
+    rates_by_distance: '/v1/rates_by_distance',
+};
+
+const resourceName = {
+    singular: 'shipping method',
+    plural: 'shipping methods',
+};
+
+const toTitleCase = (str) =>
+    str
+        .toLowerCase()
+        .split(' ')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(' ');
 
 const AddShipZone = () => {
     const { show } = useToast();
     const params = useParams();
-    const [isLoaded, setIsLoaded] = useState(false);
-    const zoneID = (params.ZoneID == undefined) ? 0 : params.ZoneID;
-    const [countZone, setCountZone] = useState(0);
-    const [apiResObj, setApiResObj] = useState({
-        status: false,
-        msg: ""
-    });
-
-    useEffect(() => {
-        if (zoneID > 0) {
-            setIsLoaded(true);
-        } else {
-            setIsLoaded(true);
-        }
-
-    }, [zoneID])
     const navigate = useNavigate();
-    const navigateHome = () => {
-        navigate('/');
-    };
-    const navigateTableRate = (id, shipMethod) => {
-        if (shipMethod === "table_rate") {
-            navigate('/rate/' + id);
-        } else {
-            navigate('/distance/' + id);
-        }
-    };
+    const zoneID = params.ZoneID === undefined ? 0 : params.ZoneID;
 
-    // const [active, setActive] = useState(false);
-    // const toggleActive = useCallback(() => setActive((active) => !active), []);
-
-    const [isRefreshMethodData, setIsRefreshMethodData] = useState(false);
-
-    const [isFullscreen, setFullscreen] = useState(true);
-    const fullscreenBarMarkup = (
-        <FullscreenBar onAction={navigateHome}>
-            <div
-                style={{
-                    display: 'flex',
-                    flexGrow: 1,
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingLeft: '1rem',
-                    paddingRight: '1rem',
-                }}
-            >
-                <div style={{ marginLeft: '1rem', flexGrow: 1 }}>
-                    <Text variant="headingLg" as="p">
-                    </Text>
-                </div>
-            </div>
-        </FullscreenBar>
-    );
-    // const [zoneMethodId, setMethodDelConfirm] = useState(false);
-
-    const [showSavebar, setShowSavebar] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
     const [zoneId, setZoneId] = useState(zoneID);
     const [zoneName, setZoneName] = useState('');
-    const handleZoneNameChange = useCallback((newValue) => {
-        setZoneName(newValue);
-        if (newValue) {
-            setShowSavebar(true);
-        } else {
-            setShowSavebar(false);
-        }
-    }, []);
-    const [isZoneChecked, setIsZoneChecked] = useState(false);
-    const handleIsZoneChange = useCallback((newChecked) => { setShowSavebar(true); setIsZoneChecked(newChecked); }, []);
-    /** zone method edit settings variable **/
+    const [isZoneChecked, setIsZoneChecked] = useState(true);
+    const [postCode, setPostCode] = useState('');
+    const [selectedCountry, setSelectedCountry] = useState([]);
+    const [selectedOptions, setSelectedOptions] = useState([]);
+    const [selectedZoneOptions, setSelectedZoneOptions] = useState([]);
+    const [shippingMethods, setShippingMethods] = useState([]);
+    const [errors, setErrors] = useState({ zoneName: '', regions: '' });
+    const [apiResObj, setApiResObj] = useState({ status: false, msg: '' });
+
+    const [isRefreshMethodData, setIsRefreshMethodData] = useState(false);
     const [localActiveModel, setLocalActiveModel] = useState(false);
     const [flatActiveModel, setFlatActiveModel] = useState(false);
     const [freeActiveModel, setFreeActiveModel] = useState(false);
@@ -98,49 +78,238 @@ const AddShipZone = () => {
     const [zoneFlatRateMethodId, setZoneFlatRateMethodId] = useState(0);
     const [zoneFreeMethodId, setZoneFreeMethodId] = useState(0);
     const [zoneLocalPickupMethodId, setZoneLocalPickupMethodId] = useState(0);
-    const [methodDelConfirm, setMethodDelConfirm] = useState(false);
     const [delMethodName, setDelMethodName] = useState('');
-    // const DeleteConfirmation = useCallback(() => setDelActive(!delActive), [delActive]);
     const [delActiveConfirm, setDelActiveConfirm] = useState(false);
-    const DeleteConfirmation = useCallback((id, method) => {
-        if (id) {
-            setDelActiveConfirm((delActiveConfirm) => !delActiveConfirm);
-            setZoneMethodId(id);
-            setDelMethodName(method);
-            setMethodDelConfirm(!methodDelConfirm), [methodDelConfirm];
+    const [showModal, setShowModal] = useState(false);
+
+    const optionList = useMemo(
+        () =>
+            selectedCountry.map((country) => ({
+                value: country.state_name
+                    ? `${country.country_code}:${country.state_code}`
+                    : country.country_code,
+                label: country.state_name
+                    ? `${country.state_name}, ${country.country_name}`
+                    : country.country_name,
+            })),
+        [selectedCountry]
+    );
+
+    const navigateHome = useCallback(() => {
+        navigate('/');
+    }, [navigate]);
+
+    const navigateTableRate = useCallback(
+        (id, shipMethod) => {
+            if (shipMethod === 'table_rate') {
+                navigate('/rate/' + id);
+            } else {
+                navigate('/distance/' + id);
+            }
+        },
+        [navigate]
+    );
+
+    const handleZoneNameChange = useCallback((newValue) => {
+        setZoneName(newValue);
+        if (newValue.trim()) {
+            setErrors((prev) => ({ ...prev, zoneName: '' }));
         }
-    });
-    /** zone method edit settings variable **/
-    const [methodId, setMethodId] = useState(0);
-    const [postCode, setPostCode] = useState('');
+    }, []);
 
-    const handlePostCodeChange = useCallback((newValue) => { setShowSavebar(true); setPostCode(newValue); }, []);
+    const handlePostCodeChange = useCallback((newValue) => {
+        setPostCode(newValue);
+    }, []);
 
-    const [selectedCountry, setSelectedCountry] = useState([]);
-    let optionList = [];
-    const [selectedOptions, setSelectedOptions] = useState();
-    const [selectedZoneOptions, setSelectedZoneOptions] = useState([]);
-    // useEffect (() => {
-    selectedCountry.map((country, index) => {
-        let data = {
-            value: (country.state_name) ? `${country.country_code}:${country.state_code}` : country.country_code,
-            label: (country.state_name) ? `${country.state_name},${country.country_name}` : country.country_name
+    const handleSelect = useCallback((data) => {
+        const regions = (data || []).map((country) => country.value);
+        setSelectedZoneOptions(regions);
+        setSelectedOptions(data || []);
+        if (data && data.length > 0) {
+            setErrors((prev) => ({ ...prev, regions: '' }));
         }
-        optionList.push(data);
-    })
+    }, []);
 
+    const openDeleteConfirmation = useCallback((id, method) => {
+        if (!id) {
+            return;
+        }
+        setZoneMethodId(id);
+        setDelMethodName(method);
+        setDelActiveConfirm(true);
+    }, []);
 
+    const closeDeleteConfirmation = useCallback(() => {
+        setDelActiveConfirm(false);
+        setZoneMethodId(0);
+        setDelMethodName('');
+    }, []);
 
-    function handleSelect(data) {
-        let region = [];
-        data.map((country, index) => {
-            optionList.push(data);
-            region.push(country.value);
+    const editShippingMethod = useCallback(
+        (id, shipMethod) => {
+            if (shipMethod === 'local_pickup') {
+                setLocalActiveModel(true);
+                setZoneLocalPickupMethodId(id);
+                setIsRefreshMethodData(false);
+                return;
+            }
+            if (shipMethod === 'flat_rate') {
+                setFlatActiveModel(true);
+                setZoneFlatRateMethodId(id);
+                setIsRefreshMethodData(false);
+                return;
+            }
+            if (shipMethod === 'free_shipping') {
+                setFreeActiveModel(true);
+                setZoneFreeMethodId(id);
+                setIsRefreshMethodData(false);
+                return;
+            }
+            setLocalActiveModel(false);
+            setFlatActiveModel(false);
+            setFreeActiveModel(false);
+            navigateTableRate(id, shipMethod);
+        },
+        [navigateTableRate]
+    );
+
+    const getCountries = () => {
+        fetch('/countries?shop=' + Config.shop)
+            .then((res) => res.json())
+            .then(
+                (result) => {
+                    if (result.status === 1) {
+                        setSelectedCountry(result.country);
+                    }
+                },
+                (error) => {
+                    show(error, { duration: 2000, isError: true });
+                }
+            );
+    };
+
+    const getShipZone = (id) => {
+        setIsLoaded(false);
+        fetch('/shipzone/' + id + '?shop=' + Config.shop)
+            .then((res) => res.json())
+            .then(
+                (result) => {
+                    if (result.status === 1) {
+                        if (result.zone_exist) {
+                            setZoneName(result.zone_exist.ship_zone || '');
+                            setIsZoneChecked(!!result.zone_exist.status);
+                            const regions = result.zone_exist.zone_region || [];
+                            setSelectedOptions(regions);
+                            setSelectedZoneOptions(
+                                regions.map((region) => region.value).filter(Boolean)
+                            );
+                            setPostCode(result.zone_exist.zip || '');
+                        }
+                        if (result.zone_mthd) {
+                            setShippingMethods(result.zone_mthd);
+                        } else {
+                            setShippingMethods([]);
+                        }
+                    }
+                    setIsLoaded(true);
+                },
+                (error) => {
+                    show(error, { duration: 2000, isError: true });
+                    setIsLoaded(true);
+                }
+            );
+    };
+
+    const delShippingMethod = () => {
+        const id = zoneMethodId !== 0 ? zoneMethodId : 0;
+        const URL = METHOD_URLS[delMethodName] + '/' + zoneMethodId;
+        if (!id) {
+            return;
+        }
+        axios
+            .delete(URL + '?shop=' + Config.shop)
+            .then((res) => {
+                if (res.status == 200) {
+                    closeDeleteConfirmation();
+                    getShipZone(zoneId);
+                    show(res.data.msg, { duration: 2000 });
+                } else {
+                    show(res.data.msg, { duration: 2000, isError: true });
+                }
+            });
+    };
+
+    const validateForm = useCallback(() => {
+        const nextErrors = { zoneName: '', regions: '' };
+        let valid = true;
+
+        if (!zoneName || zoneName.trim().length <= 0) {
+            nextErrors.zoneName = 'Zone name is required';
+            valid = false;
+        }
+
+        if (!selectedOptions || selectedOptions.length === 0) {
+            nextErrors.regions = 'Select at least one region so rates apply to the right customers.';
+        }
+
+        setErrors(nextErrors);
+        return valid;
+    }, [zoneName, selectedOptions]);
+
+    const saveAction = useCallback(() => {
+        if (!validateForm()) {
+            show('Please enter a zone name.', { duration: 2000, isError: true });
+            return;
+        }
+
+        setIsSaving(true);
+        fetch('/shipzone', {
+            method: 'POST',
+            body: JSON.stringify({
+                zoneId: zoneId,
+                shop: Config.shop,
+                shipzone: zoneName,
+                status: isZoneChecked,
+                region: selectedOptions,
+                data: selectedZoneOptions,
+                postcode: postCode,
+                _token: Config.csrf_token,
+            }),
+            headers: {
+                'Content-type': 'application/json',
+            },
         })
-        setSelectedZoneOptions(region);
-        setSelectedOptions(data);
-        setShowSavebar(true);
-    }
+            .then((res) => res.json())
+            .then((result) => {
+                if (result.status === 1) {
+                    show(result.msg, { duration: 2000 });
+                    setZoneId(result.zond_id);
+                    setShowModal(false);
+                } else {
+                    show(result.msg, { duration: 5000, isError: true });
+                }
+                setIsSaving(false);
+            })
+            .catch(() => {
+                show('Unable to save shipping zone.', { duration: 3000, isError: true });
+                setIsSaving(false);
+            });
+    }, [
+        validateForm,
+        zoneName,
+        selectedOptions,
+        zoneId,
+        isZoneChecked,
+        selectedZoneOptions,
+        postCode,
+        show,
+    ]);
+
+    const openShipMethod = useCallback(() => {
+        setShowModal(true);
+        setIsRefreshMethodData(false);
+    }, []);
+
     useEffect(() => {
         getCountries();
     }, []);
@@ -149,394 +318,273 @@ const AddShipZone = () => {
         getShipZone(zoneId);
     }, [zoneId]);
 
-    function editShippingMethod(id, shipMethod) {
-        if (shipMethod === "local_pickup") {
-            setLocalActiveModel(true);
-            setZoneLocalPickupMethodId(id);
-            setIsRefreshMethodData(false);
-            return false;
-        } else if (shipMethod === "flat_rate") {
-            setFlatActiveModel(true);
-            setZoneFlatRateMethodId(id);
-            setIsRefreshMethodData(false);
-            return false;
-        } else if (shipMethod === "free_shipping") {
-            setFreeActiveModel(true);
-            setZoneFreeMethodId(id);
-            setIsRefreshMethodData(false);
-            return false;
-        } else {
-            setLocalActiveModel(false);
-            setFlatActiveModel(false);
-            setFreeActiveModel(false);
-            navigateTableRate(id, shipMethod);
-            return false;
-        }
-
-
-    }
-    const URLs = {
-        'flat_rate': '/v1/flat-rate-shipping',
-        'free_shipping': '/v1/free-rate-shipping',
-        'local_pickup': '/v1/local-pickup-shipping',
-        'table_rate': '/v1/table-rate-shipping',
-        'rates_by_distance': '/v1/rates_by_distance',
-    };
-
-    function delShippingMethod() {
-        //lat URL = URLs[]+'/'+zoneMethodId;
-        let id = (zoneMethodId != 0) ? zoneMethodId : 0;
-        let URL = URLs[delMethodName] + '/' + zoneMethodId;
-        if (id) {
-            axios.delete(URL + "?shop=" + Config.shop)
-                .then(res => {
-                    if (res.status == 200) {
-                        setDelActiveConfirm(false);
-                        getShipZone(zoneId);
-                        show(res.data.msg, { duration: 2000 });
-                        return false;
-                    } else {
-                        show(res.data.msg, { duration: 2000, isError: true });
-                        return false;
-                    }
-                }
-                )
-        }
-    }
-
-    const [customers, setCustomers] = useState([]);
-    const resourceName = {
-        singular: 'customer',
-        plural: 'customers',
-    };
-    function toTitleCase(str) {
-        const titleCase = str
-            .toLowerCase()
-            .split(' ')
-            .map(word => {
-                return word.charAt(0).toUpperCase() + word.slice(1);
-            })
-            .join(' ');
-
-        return titleCase;
-    }
-
-    const rowMarkup = customers.map((method, index) => (
-        (method) ?
-            <IndexTable.Row id={method.id} key={index} position={index} >
-                <IndexTable.Cell>
-                    {method.title}
-                    {/* <ButtonGroup> */}
-                    <div className="shipping-zone-mth-btn-action">
-                        <Button plain onClick={() => { editShippingMethod(method.id, method.ship_method) }}>Edit</Button>&nbsp;
-                        <Button plain destructive onClick={() => { DeleteConfirmation(method.id, method.ship_method) }} >Delete</Button>
-                    </div>
-                </IndexTable.Cell>
-                <IndexTable.Cell>
-                    <CheckboxMethodStatus defaultValue={method.status} methodName={method.ship_method} methodId={method.id} />
-                </IndexTable.Cell>
-                <IndexTable.Cell>
-                    <Text variant="headingMd" as="h6">
-                        {toTitleCase(method.ship_method.replace(/_/g, " "))}
-                    </Text>
-                    <p>{method.ship_desc}</p>
-                </IndexTable.Cell>
-            </IndexTable.Row>
-
-            : ""
-    ),
-
-    );
-    const [showModal, setShowModal] = useState(false);
-    const openShipMethod = () => {
-        setShowModal(true);
-        setIsRefreshMethodData(false);
-    }
     useEffect(() => {
         if (isRefreshMethodData) {
             getShipZone(zoneId);
         }
     }, [isRefreshMethodData]);
 
-    const getCountries = () => {
-        fetch("/countries?shop=" + Config.shop).then(res => res.json()).then((result) => {
-            if (result.status === 1) {
-                // console.log(result, "ankit")
-                setSelectedCountry(result.country);
-            }
-        }, (error) => {
-            show(error, { duration: 2000, isError: true });
-        })
-    }
+    const pageTitle = zoneID > 0 || zoneId > 0 ? 'Update Shipping Zone' : 'Add Shipping Zone';
+    const saveLabel = zoneId > 0 ? 'Save changes' : 'Save shipping zone';
+    const hasZoneId = Number(zoneId) > 0;
+    const methodCount = shippingMethods.filter(Boolean).length;
 
-    const getShipZone = (id) => {
-        setIsLoaded(false);
-        fetch("/shipzone/" + id + "?shop=" + Config.shop).then(res => res.json()).then((result) => {
-            if (result.status === 1) {
-                if (result.zone_exist) {
-                    setZoneName(result.zone_exist.ship_zone || '');
-                    setIsZoneChecked(result.zone_exist.status);
-                    setSelectedOptions(result.zone_exist.zone_region);
-                    setPostCode(result.zone_exist.zip || '');
-                }
+    const rowMarkup = shippingMethods.map((method, index) =>
+        method ? (
+            <IndexTable.Row id={method.id} key={method.id || index} position={index}>
+                <IndexTable.Cell>
+                    <VerticalStack gap="1">
+                        <Text variant="bodyMd" fontWeight="semibold" as="span">
+                            {method.title}
+                        </Text>
+                        <div className="shipping-zone-mth-btn-action">
+                            <ButtonGroup>
+                                <Button
+                                    plain
+                                    onClick={() => editShippingMethod(method.id, method.ship_method)}
+                                >
+                                    Edit
+                                </Button>
+                                <Button
+                                    plain
+                                    destructive
+                                    onClick={() =>
+                                        openDeleteConfirmation(method.id, method.ship_method)
+                                    }
+                                >
+                                    Delete
+                                </Button>
+                            </ButtonGroup>
+                        </div>
+                    </VerticalStack>
+                </IndexTable.Cell>
+                <IndexTable.Cell>
+                    <CheckboxMethodStatus
+                        defaultValue={method.status}
+                        methodName={method.ship_method}
+                        methodId={method.id}
+                    />
+                </IndexTable.Cell>
+                <IndexTable.Cell>
+                    <VerticalStack gap="1">
+                        <Badge>{toTitleCase(method.ship_method.replace(/_/g, ' '))}</Badge>
+                        {method.ship_desc ? (
+                            <Text variant="bodySm" as="p" color="subdued">
+                                {method.ship_desc}
+                            </Text>
+                        ) : null}
+                    </VerticalStack>
+                </IndexTable.Cell>
+            </IndexTable.Row>
+        ) : null
+    );
 
-                if (result.zone_mthd) {
-                    setCustomers(result.zone_mthd);
-                }
-
-                setCountZone(result.zoneCount);
-                setIsLoaded(true);
-            }
-        }, (error) => {
-            show(error, { duration: 2000, isError: true });
-            setIsLoaded(true);
-        })
-    }
-
-    const saveAction = () => {
-        // disabled: false,
-        // loading: false,
-        // onAction: () => {
-
-        if (zoneName.length <= 0) {
-            show("Please Enter Zone Name.", { duration: 2000, isError: true });
-            setShowModal(false);
-            return false;
-        }
-        setIsLoaded(false);
-        fetch("/shipzone", {
-            method: "POST",
-            body: JSON.stringify({
-                'zoneId': zoneId,
-                'shop': Config.shop,
-                'shipzone': zoneName,
-                'status': isZoneChecked,
-                'region': selectedOptions,
-                'data': selectedZoneOptions,
-                'postcode': postCode,
-                '_token': Config.csrf_token
-            }),
-            headers: {
-                "Content-type": "application/json"
-            }
-        }).then(res => res.json()).then((result) => {
-            if (result.status === 1) {
-                show(result.msg, { duration: 2000 });
-                setZoneId(result.zond_id);
-                // setApiResObj(result);
-                setShowModal(false);
-            } else {
-                show(result.msg, { duration: 5000, isError: true });
-            }
-            setIsLoaded(true);
-            setShowSavebar(false);
-        });
-        // }
-    };
-    const discardAction = {
-        disabled: false,
-        loading: false,
-        discardConfirmationModal: true,
-        onAction: () => console.log('On discard action')
-    };
     return (
         <>
-
-            {/* <ContextualSaveBar
-                saveAction={saveAction}
-                discardAction={discardAction}
-                fullWidth
-                leaveConfirmationDisable
-                visible={showSavebar}
-            /> */}
-
-
             <div className="addshipmethod">
-                <Page backAction={{ content: 'Products', onAction: (() => { navigate('/'); }) }} title={zoneID > 0 ? "Update Shipping Zone" : "Add Shipping Zone"}>
+                <Page
+                    backAction={{ content: 'Shipping zones', onAction: navigateHome }}
+                    title={pageTitle}
+                    subtitle="Define where this zone applies and which shipping methods customers can choose."
+                    titleMetadata={
+                        <Badge status={isZoneChecked ? 'success' : 'attention'}>
+                            {isZoneChecked ? 'Enabled' : 'Disabled'}
+                        </Badge>
+                    }
+                    primaryAction={{
+                        content: saveLabel,
+                        onAction: saveAction,
+                        loading: isSaving,
+                        disabled: !isLoaded || isSaving,
+                    }}
+                >
                     {!isLoaded && <Loading />}
-                    {/* <div style={{ width: '100%' }}> */}
-                    {/* {isFullscreen && fullscreenBarMarkup} */}
-                    {/* <div style={{ padding: '1rem' }}></div> */}
-                    {/* </div> */}
-                    <Card>
-                        <FormLayout>
-                            <TextField
-                                label="Zone Name"
-                                value={zoneName}
-                                onChange={handleZoneNameChange}
-                                autoComplete="off"
-                                placeholder="Zone Name"
-                            />
-                            <label>Zone Regions</label>
-                            <Select
-                                options={optionList}
-                                placeholder="Select regions with in this zone"
-                                value={selectedOptions}
-                                onChange={handleSelect}
-                                isSearchable={true}
-                                isMulti
-                            />
-                            <div className='tc-postcode'>
-                                <TextField
-                                    label="Limit to specific ZIP/postcodes"
-                                    value={postCode}
-                                    onChange={handlePostCodeChange}
-                                    multiline={4}
-                                    placeholder="List postcode with comma separated"
-                                    autoComplete="off"
-                                />
 
+                    {!isLoaded ? (
+                        <Card padding="4">
+                            <div className="loader-shippment">
+                                <Box padding="5">
+                                    <HorizontalStack align="center" blockAlign="center" gap="3">
+                                        <Spinner accessibilityLabel="Loading shipping zone" size="large" />
+                                        <Text variant="headingMd" as="h2">
+                                            Loading...
+                                        </Text>
+                                    </HorizontalStack>
+                                </Box>
                             </div>
-                            <Checkbox
-                                label="Shipping Zone (Enable/Disable)"
-                                checked={isZoneChecked}
-                                onChange={handleIsZoneChange}
-                            />
-                            {/* <label>Zone Priority</label>
-                        <Select
-                            options={zoneOptions}
-                            onChange={handleZoneChange}
-                            value={zoneSelected}
-                        /> */}
-                            <Button primary onClick={saveAction}>Save Shipping Zone</Button>
-                        </FormLayout>
-                    </Card>
-                    <Layout>
-                        <Layout.Section>
-                            <LegacyCard>
-                                <LegacyCard.Section>
-                                    <Text variant="headingLg" as="h3">
-                                        Shipping Method
-                                    </Text>
-                                </LegacyCard.Section>
-                                <LegacyCard.Section>
-                                    <LegacyCard>
-                                        <div className='tc-index-table'>
-                                            <IndexTable
-                                                resourceName={resourceName}
-                                                itemCount={customers.length}
-                                                headings={[
-                                                    { title: 'Shipping Method Title' },
-                                                    { title: 'Enabled' },
-                                                    { title: 'Description' },
-                                                ]}
-                                                selectable={false}
+                        </Card>
+                    ) : (
+                        <VerticalStack gap="5">
+                            <Card padding="4">
+                                <Layout>
+                                    <Layout.AnnotatedSection
+                                        id="zone-details"
+                                        title="Zone details"
+                                        description="Give this zone a clear name so your team can identify it when managing rates."
+                                    >
+                                        <FormLayout>
+                                            <TextField
+                                                label="Zone name"
+                                                value={zoneName}
+                                                onChange={handleZoneNameChange}
+                                                autoComplete="off"
+                                                placeholder="e.g. Domestic US, EU Express"
+                                                helpText="Shown only in your admin — customers do not see this name."
+                                                error={errors.zoneName}
+                                            />
+                                        </FormLayout>
+                                    </Layout.AnnotatedSection>
+
+                                    <Layout.AnnotatedSection
+                                        id="zone-coverage"
+                                        title="Coverage"
+                                        description="Choose the countries or states included in this zone."
+                                    >
+                                        <FormLayout>
+                                            <div className="addshipmethod-region-select">
+                                                <Text variant="bodyMd" as="p" fontWeight="medium">
+                                                    Zone regions
+                                                </Text>
+                                                <Box paddingBlockStart="1" paddingBlockEnd="1">
+                                                    <Select
+                                                        options={optionList}
+                                                        placeholder="Select countries or states in this zone"
+                                                        value={selectedOptions}
+                                                        onChange={handleSelect}
+                                                        isSearchable
+                                                        isMulti
+                                                        classNamePrefix="shipzone-region"
+                                                    />
+                                                </Box>
+                                                <Text
+                                                    variant="bodySm"
+                                                    as="p"
+                                                    color={errors.regions ? 'warning' : 'subdued'}
+                                                >
+                                                    {errors.regions
+                                                        ? errors.regions
+                                                        : 'Search and select one or more regions that belong to this zone.'}
+                                                </Text>
+                                            </div>
+                                        </FormLayout>
+                                    </Layout.AnnotatedSection>
+
+                                    <Layout.AnnotatedSection
+                                        id="zone-postcodes"
+                                        title="ZIP / postcodes"
+                                        description="Optionally limit this zone to specific ZIP or postcodes within the selected regions."
+                                    >
+                                        <FormLayout>
+                                            <div className="tc-postcode">
+                                                <TextField
+                                                    label="Limit to specific ZIP / postcodes"
+                                                    value={postCode}
+                                                    onChange={handlePostCodeChange}
+                                                    multiline={4}
+                                                    placeholder="10001, 10002, 10003"
+                                                    autoComplete="off"
+                                                    helpText="Optional. Enter codes separated by commas or one per line. Leave blank to include all postcodes in the selected regions."
+                                                />
+                                            </div>
+                                        </FormLayout>
+                                    </Layout.AnnotatedSection>
+                                </Layout>
+                            </Card>
+
+                            <Card>
+                                <Box padding="4">
+                                    <VerticalStack gap="4">
+                                        <HorizontalStack align="space-between" blockAlign="center" wrap gap="3">
+                                            <VerticalStack gap="1">
+                                                <Text variant="headingMd" as="h2">
+                                                    Shipping methods
+                                                </Text>
+                                                <Text variant="bodySm" as="p" color="subdued">
+                                                    Rates and pickup options offered within this zone.
+                                                </Text>
+                                            </VerticalStack>
+                                            <Button
+                                                primary
+                                                disabled={!hasZoneId}
+                                                onClick={openShipMethod}
                                             >
-                                                {rowMarkup}
-                                            </IndexTable>
-                                        </div>
+                                                Add shipping method
+                                            </Button>
+                                        </HorizontalStack>
 
-                                    </LegacyCard>
-                                    </LegacyCard.Section>
-                                    <LegacyCard.Section>
-                                    <div className='addshipzonetack'>
-                                        <Button primary disabled={!zoneId} onClick={() => {
-                                            //contextualSaveBar.dispatch(ContextualSaveBar.Action.SHOW);
-                                            openShipMethod();
-                                        }}>
-                                            Add Shipping Method
-                                        </Button>
-                                    </div>
-                                </LegacyCard.Section>
-                            </LegacyCard>
-                        </Layout.Section>
-                    </Layout>
-                    {/* <LegacyCard sectioned> */}
-                    {/* <FormLayout>
-                            <TextField
-                                label="Zone Name"
-                                value={zoneName}
-                                onChange={handleZoneNameChange}
-                                autoComplete="off"
-                                placeholder="Zone Name"
-                            />
-                            <label>Zone Regions</label>
-                            <Select
-                                options={optionList}
-                                placeholder="Select regions with in this zone"
-                                value={selectedOptions}
-                                onChange={handleSelect}
-                                isSearchable={true}
-                                isMulti
-                            />
-                            <div className='tc-postcode'>
-                                <TextField
-                                    label="Limit to specific ZIP/postcodes"
-                                    value={postCode}
-                                    onChange={handlePostCodeChange}
-                                    multiline={4}
-                                    placeholder="List postcode with comma separated"
-                                    autoComplete="off"
-                                />
+                                        {!hasZoneId ? (
+                                            <Text variant="bodySm" as="p" color="subdued">
+                                                Save the shipping zone before adding methods.
+                                            </Text>
+                                        ) : null}
 
-                            </div>
-                            <Checkbox
-                                label="Shipping Zone (Enable/Disable)"
-                                checked={isZoneChecked}
-                                onChange={handleIsZoneChange}
-                            /> */}
-                    {/* <label>Zone Priority</label>
-                        <Select
-                            options={zoneOptions}
-                            onChange={handleZoneChange}
-                            value={zoneSelected}
-                        /> */}
-                    {/* <Button primary onClick={saveAction}>Save Shipping Zone</Button> */}
-                    {/* <Combobox
-                            allowMultiple
-                            activator={
-                                <Combobox.TextField
-                                    autoComplete="off"
-                                    label="Zone Regions"
-                                    labelHidden
-                                    value={value}
-                                    suggestion={suggestion}
-                                    verticalContent={verticalContentMarkup}
-                                    onChange={setValue}
-                                />
-                            }
-                        >
-                            {listboxMarkup}
-                        </Combobox> */}
-                    {/* <label>Shipping Method</label>
-                        <LegacyCard>
-                            <div className='tc-index-table'>
-                                <IndexTable
-                                    resourceName={resourceName}
-                                    itemCount={customers.length}
-                                    headings={[
-                                        { title: 'Shipping Method Title' },
-                                        { title: 'Enabled' },
-                                        { title: 'Description' },
-                                    ]}
-                                    selectable={false}
-                                >
-                                    {rowMarkup}
-                                </IndexTable>
-                            </div>
-
-                        </LegacyCard>
-                        <div className='addshipzonetack'>
-                            <Button primary disabled={!zoneId} onClick={() => {
-                                //contextualSaveBar.dispatch(ContextualSaveBar.Action.SHOW);
-                                openShipMethod();
-                            }}>
-                                Add Shipping Method
-                            </Button>
-                        </div> */}
-
-                    {/* </FormLayout> */}
-                    {/* </LegacyCard> */}
+                                        {methodCount === 0 ? (
+                                            <EmptyState
+                                                heading="No shipping methods yet"
+                                                action={
+                                                    hasZoneId
+                                                        ? {
+                                                              content: 'Add shipping method',
+                                                              onAction: openShipMethod,
+                                                          }
+                                                        : undefined
+                                                }
+                                                image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                                            >
+                                                <p>
+                                                    {hasZoneId
+                                                        ? 'Add flat rate, free shipping, local pickup, table rate, or distance-based methods for this zone.'
+                                                        : 'Save this zone first, then add the methods customers will see at checkout.'}
+                                                </p>
+                                            </EmptyState>
+                                        ) : (
+                                            <div className="tc-index-table">
+                                                <IndexTable
+                                                    resourceName={resourceName}
+                                                    itemCount={methodCount}
+                                                    headings={[
+                                                        { title: 'Method title' },
+                                                        { title: 'Enabled' },
+                                                        { title: 'Type & description' },
+                                                    ]}
+                                                    selectable={false}
+                                                >
+                                                    {rowMarkup}
+                                                </IndexTable>
+                                            </div>
+                                        )}
+                                    </VerticalStack>
+                                </Box>
+                            </Card>
+                        </VerticalStack>
+                    )}
                 </Page>
-
-
             </div>
 
-
-
-            <LocalPickup localActiveModel={localActiveModel} setIsRefreshMethodData={setIsRefreshMethodData} getShipZone={getShipZone} setLocalActiveModel={setLocalActiveModel} zoneMethodId={zoneLocalPickupMethodId} setApiResObj={setApiResObj} />
-            <FlatRate flatActiveModel={flatActiveModel} setIsRefreshMethodData={setIsRefreshMethodData} getShipZone={getShipZone} setFlatActiveModel={setFlatActiveModel} zoneMethodId={zoneFlatRateMethodId} setApiResObj={setApiResObj} />
-            <FreeShipping freeActiveModel={freeActiveModel} setIsRefreshMethodData={setIsRefreshMethodData} getShipZone={getShipZone} setFreeActiveModel={setFreeActiveModel} zoneMethodId={zoneFreeMethodId} setApiResObj={setApiResObj} />
+            <LocalPickup
+                localActiveModel={localActiveModel}
+                setIsRefreshMethodData={setIsRefreshMethodData}
+                getShipZone={getShipZone}
+                setLocalActiveModel={setLocalActiveModel}
+                zoneMethodId={zoneLocalPickupMethodId}
+                setApiResObj={setApiResObj}
+            />
+            <FlatRate
+                flatActiveModel={flatActiveModel}
+                setIsRefreshMethodData={setIsRefreshMethodData}
+                getShipZone={getShipZone}
+                setFlatActiveModel={setFlatActiveModel}
+                zoneMethodId={zoneFlatRateMethodId}
+                setApiResObj={setApiResObj}
+            />
+            <FreeShipping
+                freeActiveModel={freeActiveModel}
+                setIsRefreshMethodData={setIsRefreshMethodData}
+                getShipZone={getShipZone}
+                setFreeActiveModel={setFreeActiveModel}
+                zoneMethodId={zoneFreeMethodId}
+                setApiResObj={setApiResObj}
+            />
 
             <AddShipMethod
                 showModal={showModal}
@@ -547,43 +595,38 @@ const AddShipZone = () => {
             />
 
             <Modal
-                // activator={activator}
                 open={delActiveConfirm}
-                onClose={DeleteConfirmation}
-                // title=""
+                onClose={closeDeleteConfirmation}
+                title="Delete shipping method"
                 primaryAction={{
-                    destructive: 1,
+                    destructive: true,
                     content: 'Delete',
                     onAction: delShippingMethod,
                 }}
                 secondaryActions={[
                     {
-                        content: 'Cencel',
-                        onAction: DeleteConfirmation,
+                        content: 'Cancel',
+                        onAction: closeDeleteConfirmation,
                     },
                 ]}
             >
                 <Modal.Section>
                     <TextContainer>
-                        <Icon source={DeleteMinor} color="critical" />
-                        <Text variant="headingLg" as="h5">
-                            Are you sure? ?
+                        <HorizontalStack align="center">
+                            <Icon source={DeleteMinor} color="critical" />
+                        </HorizontalStack>
+                        <Text variant="headingMd" as="h5">
+                            Delete this shipping method?
                         </Text>
                         <p>
-                            You want be able to delete this!
+                            This action cannot be undone. Customers will no longer see this method at
+                            checkout.
                         </p>
                     </TextContainer>
                 </Modal.Section>
             </Modal>
-
-            {/* {apiResObj.msg && <Toast content={apiResObj.msg} duration={2000} isError={!apiResObj.status} onDismiss={() => {
-                setApiResObj({
-                    status: 0,
-                    msg: ""
-                });
-            }} />} */}
         </>
-    )
-}
+    );
+};
 
-export default AddShipZone
+export default AddShipZone;

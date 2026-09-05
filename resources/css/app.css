@@ -18,6 +18,38 @@ p.ship-zone-method { width: 500px; white-space: normal; }
 #PolarisPortalsContainer .Polaris-HorizontalStack .Polaris-HorizontalStack button.Polaris-Button { min-width: 130px; min-height: 45px; line-height: 45px; padding: 0 10px; } 
 #PolarisPortalsContainer .Polaris-HorizontalStack .Polaris-HorizontalStack button.Polaris-Button span.Polaris-Button__Content { font-size: 16px; }
 #PolarisPortalsContainer button.Polaris-Modal-CloseButton { margin-right: 0; }
+.add-ship-method-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+}
+.add-ship-method-modal,
+.add-ship-method-modal .Polaris-Banner,
+.add-ship-method-modal .Polaris-Banner p,
+.add-ship-method-modal .Polaris-TextContainer,
+.add-ship-method-modal .Polaris-Box p {
+    text-align: left !important;
+}
+.add-ship-method-modal .Polaris-Banner p {
+    font-size: 0.875rem !important;
+    font-weight: 400 !important;
+}
+.add-ship-method-modal__actions .Polaris-HorizontalStack {
+    justify-content: flex-end !important;
+    width: 100%;
+}
+.add-ship-method-modal__actions .Polaris-ButtonGroup {
+    justify-content: flex-end;
+}
+.add-ship-method-modal__actions button.Polaris-Button {
+    min-width: auto !important;
+    min-height: 2.25rem !important;
+    line-height: 1.25rem !important;
+    padding: 0.5rem 1rem !important;
+}
+.add-ship-method-modal__actions button.Polaris-Button span.Polaris-Button__Content {
+    font-size: 0.875rem !important;
+}
 .Polaris-FormLayout label, #PolarisPortalsContainer label {font-weight: 500;font-size: 15px;}
 .tc-index-table tr th.Polaris-IndexTable__TableHeading { font-size: 15px; }
 
@@ -59,6 +91,29 @@ nav[aria-label="Pagination"] { display: flex; justify-content: center; align-ite
 .Polaris-Modal-Dialog__Modal {max-width: 540px !important;}
 .Polaris-Modal-Dialog__Modal .Polaris-Modal__Body .Polaris-Box p {text-align: center;}
 .AddCarrierServicesPage .Polaris-Layout, .addshipmethod .Polaris-Layout {margin-top: 5px;}
+.addshipmethod .addshipmethod-region-select .shipzone-region__control {
+    min-height: 36px;
+    border-color: var(--p-color-border, #c9cccf);
+    border-radius: var(--p-border-radius-100, 8px);
+    box-shadow: none;
+}
+.addshipmethod .addshipmethod-region-select .shipzone-region__control:hover {
+    border-color: var(--p-color-border-hover, #8c9196);
+}
+.addshipmethod .addshipmethod-region-select .shipzone-region__control--is-focused {
+    border-color: var(--p-color-border-focus, #005bd3);
+    box-shadow: 0 0 0 1px var(--p-color-border-focus, #005bd3);
+}
+.addshipmethod .addshipmethod-region-select .shipzone-region__multi-value {
+    background: var(--p-color-bg-surface-secondary, #f1f2f3);
+    border-radius: var(--p-border-radius-100, 6px);
+}
+.addshipmethod .addshipmethod-region-select .shipzone-region__menu {
+    z-index: 20;
+}
+.addshipmethod .shipping-zone-mth-btn-action {
+    margin-top: 4px;
+}
 .AddCarrierServicesPage .Polaris-IndexTable__Table--unselectable.Polaris-IndexTable__Table--sticky .Polaris-IndexTable__TableCell:first-child {position: unset;}
 .services-page-opt-select .Polaris-Box { border-bottom-left-radius: 0px; border-bottom-right-radius: 0px; }
 .services-page-opt .Polaris-Box { border-top-left-radius: 0px; border-top-right-radius: 0px; }

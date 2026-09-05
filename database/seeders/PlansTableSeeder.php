@@ -40,7 +40,7 @@ class PlansTableSeeder extends Seeder
                 'terms' => 'Enable 10-100 locations',
                 'trial_days' => 0,
                 'test' => 0,
-                'on_install' => 1,
+                'on_install' => 0,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ],
@@ -54,7 +54,7 @@ class PlansTableSeeder extends Seeder
                 'terms' => 'Enable 100-500 locations',
                 'trial_days' => 0,
                 'test' => 0,
-                'on_install' => 1,
+                'on_install' => 0,
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ]
