@@ -125,36 +125,36 @@ trait LocalPickupTrait
         }
 
         $carrierLabel = $request->has('carrier_label') ? $request->carrier_label : null; // The selected carrier label
-
+        $shopId = $user->id;
 
         // Check if carrier_label includes any available carrier name
         if (str_contains($carrierLabel, "Free Shipping")) {
 
-            $freeShips = json_decode($this->minimumOrderAmount($price, $toAddress['country'], $toAddress['state'], $toAddress['zip']), true);
+            $freeShips = json_decode($this->minimumOrderAmount($price, $toAddress['country'], $toAddress['state'], $toAddress['zip'], $shopId), true);
             if ($freeShips && isset($freeShips[0][0]['shipPrice'])) {
                 $shipPrice = $freeShips[0][0]['shipPrice'];
             }
         } elseif (str_contains($carrierLabel, "Flat Rate")) {
 
-            $flateRate =  json_decode($this->flatRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip']), true);
+            $flateRate =  json_decode($this->flatRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $shopId), true);
             if ($flateRate && isset($flateRate[0][0]['shipPrice'])) {
                 $shipPrice = $flateRate[0][0]['shipPrice'];
             }
         } elseif (str_contains($carrierLabel, "Local Pickup")) {
 
-            $localPickup =  json_decode($this->localPickUpShipping($toAddress['country'], $toAddress['state'], $toAddress['zip']), true);
+            $localPickup =  json_decode($this->localPickUpShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $shopId), true);
             if ($localPickup && isset($localPickup[0][0]['shipPrice'])) {
                 $shipPrice = $localPickup[0][0]['shipPrice'];
             }
         } elseif (str_contains($carrierLabel, "Table Rate")) {
 
-            $tableRate = json_decode($this->tableRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $price, $weight, $quantity, $lineItem), true);
+            $tableRate = json_decode($this->tableRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $price, $weight, $quantity, $lineItem, $shopId), true);
             if ($tableRate && isset($tableRate[0][0]['shipPrice'])) {
                 $shipPrice = $tableRate[0][0]['shipPrice'];
             }
         } elseif (str_contains($carrierLabel, "Distance Rate")) {
 
-            $distanceRate = json_decode($this->DistanceRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $toAddress['street1'], $price, $weight, $quantity, $lineItem), true);
+            $distanceRate = json_decode($this->DistanceRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $toAddress['street1'], $price, $weight, $quantity, $lineItem, $shopId), true);
             if ($distanceRate && isset($distanceRate[0][0]['shipPrice'])) {
                 $shipPrice = $distanceRate[0][0]['shipPrice'];
             }

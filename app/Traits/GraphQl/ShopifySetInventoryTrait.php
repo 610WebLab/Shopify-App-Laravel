@@ -6,7 +6,7 @@ trait ShopifySetInventoryTrait {
     public function setInventoryQuantity($inventoryItemId, $locationId, $quantity, $reason = 'correction', $ignoreCompareQuantity = true, $shop)
     {
         
-        $shopifyApiUrl = "https://".$shop->name."/admin/api/".env('SHOPIFY_API_VERSION')."/graphql.json"; 
+        $shopifyApiUrl = "https://".$shop->name."/admin/api/".config('shopify-app.api_version')."/graphql.json"; 
         
         $mutation = '
         mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
