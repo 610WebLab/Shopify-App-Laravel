@@ -161,32 +161,32 @@ class RatesByDistanceController extends Controller
     {
         $shop = User::where('name', $request->shop)->first();
         if (!empty($shop)) {
-            $endpoint = "https://" . $shop->name . "/admin/api/" . env("SHOPIFY_API_VERSION") . "/graphql.json";
+            $endpoint = "https://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/graphql.json";
             $query = <<<GQL
-    {
-      locations(first: 10) {
-        edges {
-          node {
-            id
-            name
-            address {
-              formatted
-              address1
-              address2
-              city
-              province
-              provinceCode
-              country
-              countryCode
-              latitude
-              longitude
-              zip
-            }
-          }
-        }
-      }
-    }
-    GQL;
+                        {
+                        locations(first: 10) {
+                            edges {
+                            node {
+                                id
+                                name
+                                address {
+                                formatted
+                                address1
+                                address2
+                                city
+                                province
+                                provinceCode
+                                country
+                                countryCode
+                                latitude
+                                longitude
+                                zip
+                                }
+                            }
+                            }
+                        }
+                        }
+                    GQL;
             $response = Http::withHeaders([
                 'X-Shopify-Access-Token' => $shop->password,
                 'Content-Type' => 'application/json',

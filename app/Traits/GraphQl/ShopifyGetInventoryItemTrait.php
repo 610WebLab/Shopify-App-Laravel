@@ -4,6 +4,8 @@ namespace App\Traits\GraphQl;
 use GuzzleHttp\Client;
 
 trait ShopifyGetInventoryItemTrait {
+
+
     public function fetchShopifyInventoryItemById($inventoryItemId, $shop)
     {
         $query = '
@@ -39,12 +41,9 @@ trait ShopifyGetInventoryItemTrait {
      * @param string $query
      * @return \Psr\Http\Message\ResponseInterface
      */
-    private function makeGraphQLRequest($query, $shop)
-    {
+    private function makeGraphQLRequest($query, $shop){
         $client = new Client();
-        $shopifyUrl = "https://".$shop->name."/admin/api/".env('SHOPIFY_API_VERSION')."/graphql.json";
-       
-
+        $shopifyUrl = "https://".$shop->name."/admin/api/".config('shopify-app.api_version')."/graphql.json";
         return $client->post($shopifyUrl, [
             'headers' => [
                 'Content-Type' => 'application/json',

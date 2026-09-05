@@ -311,7 +311,7 @@ class ShippingZones extends Controller
     public function updateCheckoutApi(Request $request)
     {
         $shop = User::where('name', $request->shop)->first();
-        $url = "http://" . $shop->name . "/admin/api/" . env('SHOPIFY_API_VERSION') . "/checkouts/" . $request->token . ".json";
+        $url = "http://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/checkouts/" . $request->token . ".json";
         $data["token"] = $request->token;
         $data["shipping_line"] = ["handle" => "local pickup"];
         $headers = array();
@@ -330,7 +330,7 @@ class ShippingZones extends Controller
             $shop = User::where('name', $input['shop'])->first();
             if ($shop) {
                 if ($shop->status === 'false') {
-                    $url = "https://" . $shop->name . "/admin/api/" . env('SHOPIFY_API_VERSION') . "/carrier_services.json";
+                    $url = "https://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/carrier_services.json";
 
                     $services['carrier_service'] = [
                         "name" => "Shipping Rates Provider-1",
@@ -346,32 +346,7 @@ class ShippingZones extends Controller
                     if (!empty($resError['errors']) && isset($resError['errors'])) {
                         return json_encode(['status' => 0, 'msg' => $resError['errors']['base'][0]]);
                     } 
-                    // else {
-                    //     // dd($resError);
-                    // }
-
-                    // $headers = array();
-                    // $headers['Content-Type'] = 'application/json';
-                    // $headers['X-Shopify-Access-Token'] = $shop->password;
-                    // $carrierService = Http::withHeaders($headers)->post($url, $services);
-                    // dd($carrierService->body());
-
-                    // $resp = $shop->api()->rest(
-                    //     'POST',
-                    //     '/admin/api/' . env('SHOPIFY_API_VERSION') . 'carrier_services.json',
-                    //     array('carrier_service' => $data)
-                    // )['body'];
-                    // dd(json_decode($resp, true));
-                    // $url = "https://" . $shop->name . "/admin/api/" . env('SHOPIFY_API_VERSION') . "/carrier_services.json";
-                    // // dd($url);
-                    // $services['carrier_service'] = [
-                    //     "name" => "Shipping Rates Provider",
-                    //     "callback_url" => "https://shipping.webziainfotech.com/api/v1/carrier_service",
-                    //     "service_discovery " => true
-                    // ];
-
-                    // $carrierserv = json_encode($services);
-                    // $result = $this->carrierServices($url, $carrierserv, $shop->password);
+                   
                     $response = json_decode($result, true);
                     if (isset($response["carrier_service"]) && !empty($response["carrier_service"])) {
                         $shop->status = "true";
@@ -505,36 +480,6 @@ class ShippingZones extends Controller
     public function store(Request $request)
     {
         $shop = User::where('name', $request->shop)->first();
-
-        // if(Shippingzone::where('user_id', $shop->id)->count() == 0){
-        //     $url = "https://" . $shop->name . "/admin/api/". env('SHOPIFY_API_VERSION') . "/carrier_services.json";
-
-        //     $services['carrier_service']= [
-        //         "name" => "Shipping Rates Provider",
-        //         "callback_url" => "https://shipping.webziainfotech.com/api/v1/carrier_service",
-        //         "service_discovery " => true
-        //     ];
-
-        //     $carrierserv = json_encode($services);
-        //     $result = $this->carrierServices($url, $carrierserv, $shop->password);
-        //     $resError = json_decode($result, true);
-        //     if(!empty($resError['errors']) && isset($resError['errors'])){
-        //         return json_encode(['status' => 0, 'msg' => $resError['errors']['base'][0]]);
-        //     }
-
-        //     // $headers = array();
-        //     // $headers['Content-Type'] = 'application/json';
-        //     // $headers['X-Shopify-Access-Token'] = $shop->password;
-        //     // $carrierService = Http::withHeaders($headers)->post($url, $services);
-        //     // dd($carrierService->body());
-
-        //     // $resp = $shop->api()->rest(
-        //     //     'POST',
-        //     //     '/admin/api/' . env('SHOPIFY_API_VERSION') . 'carrier_services.json',
-        //     //     array('carrier_service' => $data)
-        //     // )['body'];
-        //     // dd(json_decode($resp, true));
-        // }
 
         if ($shop) {
             $country = [];

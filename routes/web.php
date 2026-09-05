@@ -3,7 +3,6 @@
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 use App\Http\Controllers\ShippingZones;
-use App\Http\Controllers\ShippingMethod;
 use App\Http\Controllers\V1\LocalPickupMethodController;
 use App\Http\Controllers\V1\FlatRateMethodController;
 use App\Http\Controllers\V1\FreeShipMethodController;
@@ -83,11 +82,6 @@ Route::get('/store-country',[CountriesController::class, 'storeCountryAndState']
 Route::get('/updateShipMethodStatus/{id}', [ShippingZones::class, 'updateShipMethodStatus']);
 Route::get('/updateShipZoneStatus/{id}', [ShippingZones::class, 'updateShipZoneStatus']);
 
-Route::post('/localPickup', [ShippingMethod::class, 'localPickup']);
-Route::resource('shipping-options', ShippingMethod::class)->only([
-    'index','store','show', 
-]);
-
 Route::prefix('v1')->group(function () {
 
     Route::resource('local-pickup-shipping', LocalPickupMethodController::class)->only([
@@ -112,8 +106,6 @@ Route::prefix('v1')->group(function () {
 
     Route::get('/locations', [RatesByDistanceController::class, 'getShopLocations']);
 });
-Route::post('/flatRateShip', [ShippingMethod::class, 'flatRateShip']);
-Route::post('/freeShipping', [ShippingMethod::class, 'freeShipping']);
 Route::resource('/orders',OrderController::class);
 Route::resource('/other-carrier-service',OtherCarrierServiceController::class);
 Route::get('/update-other-carrier-status/{id}', [OtherCarrierServiceController::class, 'updateOtherCarrierStatus']);
