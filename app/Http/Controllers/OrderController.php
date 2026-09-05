@@ -307,7 +307,7 @@ class OrderController extends Controller
 
                     ]);
 
-                    $url = 'https://' . $shop->name . '/admin/api/' . env("SHOPIFY_API_VERSION") . '/fulfillments.json';
+                    $url = 'https://' . $shop->name . '/admin/api/' . config('shopify-app.api_version') . '/fulfillments.json';
 
                     sleep(1);
 
@@ -356,7 +356,7 @@ class OrderController extends Controller
         $client = new \GuzzleHttp\Client();
         $headers['X-Shopify-Access-Token'] = $shop->password;
         $headers['Content-Type'] = "application/json";
-        $url  = "https://" . $shop->name . "/admin/api/" . env("SHOPIFY_API_VERSION") . "/orders/" . $order_id . "/fulfillment_orders.json";
+        $url  = "https://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/orders/" . $order_id . "/fulfillment_orders.json";
         $response = $client->request('GET', $url, ['headers' => $headers]);
         $data = json_decode($response->getBody());
         return $data;
