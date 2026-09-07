@@ -271,12 +271,11 @@ trait LocalPickupTrait
             $order->save();
         }
 
-        // // 11) Return success response with PDF URL
         return response()->json([
             'status'  => true,
             'message' => 'Local shipping label created successfully.',
             'data'    => [
-                'pdf_url' => url('labels/' . $fileName),
+                'pdf_url' => $pdfUrl,
             ],
         ]);
     }
