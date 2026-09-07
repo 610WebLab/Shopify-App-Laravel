@@ -13,7 +13,6 @@ class Order extends Model
         'order_id',
         'order_name',
         'order_no',
-        'labels',
         'date',
         'customer_id',
         'customer_name',

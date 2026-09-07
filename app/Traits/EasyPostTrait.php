@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Dimension;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use App\Services\Shopify\ShopifyAdminClient;
 use Http;
 use Log;
 
@@ -306,12 +307,7 @@ trait EasyPostTrait
 
     public function getShopInfo($shop)
     {
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'X-Shopify-Access-Token' => $shop->password,
-        ])->get('https://' . $shop->name . '/admin/api/2025-01/shop.json');
-
-        return $response->json();
+        return ShopifyAdminClient::for($shop)->getJson('shop.json');
     }
 
     public function createEasyPostLabel($service, $request)

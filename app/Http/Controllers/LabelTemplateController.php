@@ -3,12 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\LabelTemplate;
-use Illuminate\Http\Request;
-use Barryvdh\DomPDF\Facade\Pdf;
 use App\Models\User;
+use App\Services\Label\LabelHtmlRenderer;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-
-use Illuminate\Support\Facades\File;
 
 class LabelTemplateController extends Controller
 {
@@ -27,19 +26,10 @@ class LabelTemplateController extends Controller
 
             ],404);
         }
-        $defaultTemplates = LabelTemplate::whereNull('user_id')->get();
 
+        $this->syncDefaultTemplatesForShop($user->id);
 
-
-        foreach ($defaultTemplates as $template) {
-            // 🔄 Update if exists or create a new template for the user
-            LabelTemplate::firstOrCreate(
-                ['user_id' => $user->id, 'name' => $template->name], // Check if exists
-                ['content' => $template->content, 'type' => 'default'] // Create if not
-            );
-        }
-    
-        return response()->json(LabelTemplate::where('user_id', $user->id)->get());
+        return response()->json(LabelTemplate::where('user_id', $user->id)->orderBy('id', 'ASC')->get());
     }
 
     public function getTemplates(Request $request){
@@ -52,13 +42,36 @@ class LabelTemplateController extends Controller
             ],404);
         }
 
-        $templates =LabelTemplate::where('user_id', $user->id)->get();
+        $this->syncDefaultTemplatesForShop($user->id);
+
+        $templates = LabelTemplate::where('user_id', $user->id)->orderBy('id', 'ASC')->get();
 
         return response()->json([
             "status"=>true,
             "templates"=>$templates
         ]);
 
+    }
+
+    /**
+     * Copy system default templates (user_id null) into the shop account.
+     */
+    private function syncDefaultTemplatesForShop(int $userId): void
+    {
+        $defaultTemplates = LabelTemplate::whereNull('user_id')->where('type', 'default')->get();
+
+        foreach ($defaultTemplates as $template) {
+            LabelTemplate::firstOrCreate(
+                [
+                    'user_id' => $userId,
+                    'name' => $template->name,
+                ],
+                [
+                    'content' => $template->content,
+                    'type' => 'default',
+                ]
+            );
+        }
     }
 
     /**
@@ -155,37 +168,43 @@ class LabelTemplateController extends Controller
     }
 
     /**
-     * Generate PDF from the template.
+     * Generate PDF preview using the shop's latest order and Label Settings.
      *
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function generatePdf($id)
+    public function generatePdf(Request $request, $id)
     {
-        $template = LabelTemplate::findOrFail($id);
+        $user = User::where('name', $request->shop)->first();
+        if (!$user) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Shop not found',
+            ], 404);
+        }
 
-        $data = [
-            'order_name' => 'Order ABC',
-            'order_number' => '12345',
-            'item_number' => 'ITM-67890',
-            'price' => '$99.99',
-            'qr_code' => 'data:image/png;base64,' . base64_encode(file_get_contents(public_path('images/qr_code.png')))
-        ];
+        $template = LabelTemplate::where('id', $id)
+            ->where(function ($query) use ($user) {
+                $query->where('user_id', $user->id)->orWhereNull('user_id');
+            })
+            ->firstOrFail();
 
-        $templateContent = str_replace(
-            ['{order_name}', '{order_number}', '{item_number}', '{price}', '{qr_code}'],
-            [$data['order_name'], $data['order_number'], $data['item_number'], $data['price'], $data['qr_code']],
-            $template->content
-        );
+        $renderer = app(LabelHtmlRenderer::class);
+        $preview = $renderer->renderPreviewHtml($template, $user);
+
         $pdf = PDF::loadView('pdf.label_template', [
             'template' => $template,
-            'templateContent' => $templateContent
-        ]);
-        $pdf = PDF::loadView('pdf.label_template', [
-            'template' => $template,
-            'templateContent' => $templateContent
-        ]);
+            'templateContent' => $preview['html'],
+            'orderLabel' => $preview['order_label'],
+        ])->setPaper('letter');
 
-        return $pdf->stream('label_template_' . $template->id . '.pdf');
+        $fileName = 'label_preview_' . $template->id . '.pdf';
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $fileName . '"',
+            'X-Preview-Order' => $preview['order_label'],
+            'Access-Control-Expose-Headers' => 'X-Preview-Order',
+        ]);
     }
 }

@@ -1,150 +1,263 @@
-// TemplateListPage.js
 import axios from 'axios';
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Page,
   Layout,
-  Card,
+  LegacyCard,
   Button,
+  ButtonGroup,
   IndexTable,
   useIndexResourceState,
   Modal,
   TextContainer,
-  Spinner
+  Spinner,
+  Badge,
+  Text,
+  EmptyState,
+  Box,
+  Banner,
 } from '@shopify/polaris';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@shopify/app-bridge-react';
 
 const TemplateListPage = () => {
-  const [loading, setLoading] = useState(false);
-
+  const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState([]);
   const [activeDeleteModal, setActiveDeleteModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [previewingId, setPreviewingId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(templates);
   const navigate = useNavigate();
+  const { show } = useToast();
+
+  const fetchTemplates = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await axios.get(`/label-templates?shop=${Config.shop}`);
+      setTemplates(Array.isArray(data) ? data : []);
+    } catch (error) {
+      show('Failed to load label templates.', { duration: 2500, isError: true });
+    } finally {
+      setLoading(false);
+    }
+  }, [show]);
 
   useEffect(() => {
     fetchTemplates();
-  }, []);
+  }, [fetchTemplates]);
 
-  const fetchTemplates = async () => {
-    setLoading(true);
-    try {
-      
-      const { data } = await axios.get(`/label-templates?shop=${Config.shop}`);
-      setTemplates(data);
-    } catch (error) {
-      console.error('Error fetching templates:', error);
-    }finally {
-      setLoading(false);
+  const handleDelete = useCallback(async () => {
+    if (!selectedTemplate) {
+      return;
     }
-  };
 
-  const handleDelete = async () => {
-    if (!selectedTemplate) return;
+    setDeleting(true);
     try {
-      await axios.delete(`/label-templates/${selectedTemplate.id}`);
+      await axios.delete(`/label-templates/${selectedTemplate.id}?shop=${Config.shop}`);
       setActiveDeleteModal(false);
       setSelectedTemplate(null);
+      show('Template deleted successfully.', { duration: 2000 });
       fetchTemplates();
     } catch (error) {
-      console.error('Error deleting template:', error);
-      alert('An error occurred while deleting the template.');
+      show('Unable to delete this template.', { duration: 2500, isError: true });
+    } finally {
+      setDeleting(false);
     }
-  };
+  }, [fetchTemplates, selectedTemplate, show]);
 
-  // const handlePreview = (template) => {
-  //   alert(`Preview Template: ${template.name}\n\n${template.content}`);
-  // };
-  const handlePreview = async (id) => {
+  const handlePreview = useCallback(async (template) => {
+    setPreviewingId(template.id);
     try {
-        const response = await fetch(`/label-templates/${id}/generate-pdf`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-        });
+      const response = await fetch(`/label-templates/${template.id}/generate-pdf?shop=${Config.shop}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/pdf',
+          'X-CSRF-TOKEN': Config.csrf_token,
+        },
+      });
 
-        if (!response.ok) throw new Error('Network response was not ok');
-
-        // Convert response to Blob
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-
-        // Open in a new tab for print preview
-        const newTab = window.open(url, '_blank');
-        if (!newTab) {
-            alert('Please allow popups for this website to preview the PDF.');
+      if (!response.ok) {
+        let message = 'Failed to generate label preview.';
+        try {
+          const errorBody = await response.json();
+          message = errorBody.message || message;
+        } catch (parseError) {
+          // Keep default message when response is not JSON.
         }
-    } catch (error) {
-        console.error('Error previewing the PDF:', error);
-        alert('Failed to preview the PDF.');
-    }
-};
+        throw new Error(message);
+      }
 
-  const rowMarkup = templates.map((template, index) => (
-    <IndexTable.Row
-      id={template.id.toString()}
-      key={template.id}
-      selected={selectedResources.includes(template.id.toString())}
-      position={index}
-      onClick={() => { console.log("Row Click"); }}
-    >
-      <IndexTable.Cell>{template.name}</IndexTable.Cell>
-      <IndexTable.Cell>
-        <Button size="slim" onClick={() => navigate(`/pages/templates/edit/${template.id}`)}>Edit</Button>
-        <Button size="slim" onClick={() => handlePreview(template.id)} tone="secondary">Preview</Button>
-        <Button
-          size="slim"
-          tone="critical"
-          onClick={() => {
-            setSelectedTemplate(template);
-            setActiveDeleteModal(true);
-          }}
-          disabled={template.type =="default"}
-          style={{ cursor: template.type != "default" ? 'pointer' : 'not-allowed' }}
-        >
-          Delete
-        </Button>
-      </IndexTable.Cell>
-    </IndexTable.Row>
-  ));
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const orderLabel = response.headers.get('X-Preview-Order');
+      const newTab = window.open(url, '_blank');
+
+      if (!newTab) {
+        show('Please allow popups to view the label preview.', { duration: 3000, isError: true });
+      } else {
+        show(
+          orderLabel
+            ? `Preview ready using order ${orderLabel}.`
+            : 'Preview ready using your latest order data.',
+          { duration: 2500 }
+        );
+      }
+
+      setTimeout(() => window.URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      show(error.message || 'Failed to preview the PDF.', { duration: 2500, isError: true });
+    } finally {
+      setPreviewingId(null);
+    }
+  }, [show]);
+
+  const rowMarkup = templates.map((template, index) => {
+    const templateId = String(template.id);
+    const isDefault = template.type === 'default';
+    const isPreviewing = previewingId === template.id;
+
+    return (
+      <IndexTable.Row
+        id={templateId}
+        key={template.id}
+        selected={selectedResources.includes(templateId)}
+        position={index}
+      >
+        <IndexTable.Cell>
+          <div className="label-template-name-cell">
+            <Text as="span" variant="bodyMd" fontWeight="semibold">
+              {template.name}
+            </Text>
+            {isDefault ? (
+              <Badge tone="info">Default</Badge>
+            ) : (
+              <Badge>Custom</Badge>
+            )}
+          </div>
+        </IndexTable.Cell>
+        <IndexTable.Cell>
+          <ButtonGroup>
+            <Button
+              size="slim"
+              onClick={() => navigate(`/pages/templates/edit/${template.id}`)}
+            >
+              Edit
+            </Button>
+            <Button
+              size="slim"
+              loading={isPreviewing}
+              onClick={() => handlePreview(template)}
+            >
+              Preview
+            </Button>
+            <Button
+              size="slim"
+              tone="critical"
+              disabled={isDefault}
+              onClick={() => {
+                setSelectedTemplate(template);
+                setActiveDeleteModal(true);
+              }}
+            >
+              Delete
+            </Button>
+          </ButtonGroup>
+        </IndexTable.Cell>
+      </IndexTable.Row>
+    );
+  });
 
   return (
     <Page
       title="Label Templates"
-      primaryAction={{ content: 'Create Template', onAction: () => navigate('/pages/templates/create') }}
+      subtitle="Design shipping labels and preview them with your latest order"
+      secondaryActions={[
+        {
+          content: 'Label Settings',
+          onAction: () => navigate('/pages/templates/label-settings'),
+        },
+      ]}
+      primaryAction={{
+        content: 'Create Template',
+        onAction: () => navigate('/pages/templates/create'),
+      }}
     >
-      <div className="template_list">
-      <Layout>
-        <Layout.Section>
-          <Card title="Saved Templates">
-            {loading ?<Spinner accessibilityLabel="Spinner example" size="large" />: <IndexTable
-              resourceName={{ singular: 'template', plural: 'templates' }}
-              itemCount={templates.length}
-              selectedItemsCount={allResourcesSelected ? 'All' : selectedResources.length}
-              onSelectionChange={handleSelectionChange}
-              headings={[{ title: 'Name' }, { title: 'Actions' }]}
-            >
-              {rowMarkup}
-            </IndexTable>}
-          </Card>
-        </Layout.Section>
-      </Layout>
+      <div className="label-templates-list">
+        <Layout>
+          <Layout.Section>
+            <Banner status="info">
+              Preview fills every template variable from Label Settings and your most recent Shopify order.
+            </Banner>
+          </Layout.Section>
+
+          <Layout.Section>
+            <LegacyCard>
+              {loading ? (
+                <Box padding="500">
+                  <div className="label-templates-loading">
+                    <Spinner accessibilityLabel="Loading label templates" size="large" />
+                  </div>
+                </Box>
+              ) : templates.length === 0 ? (
+                <EmptyState
+                  heading="Create your first label template"
+                  action={{
+                    content: 'Create Template',
+                    onAction: () => navigate('/pages/templates/create'),
+                  }}
+                  secondaryAction={{
+                    content: 'Label Settings',
+                    onAction: () => navigate('/pages/templates/label-settings'),
+                  }}
+                  image="https://cdn.shopify.com/s/files/1/0262/4071/2726/files/emptystate-files.png"
+                >
+                  <p>Build enterprise shipping labels with branding, addresses, barcodes, and order data.</p>
+                </EmptyState>
+              ) : (
+                <IndexTable
+                  resourceName={{ singular: 'template', plural: 'templates' }}
+                  itemCount={templates.length}
+                  selectedItemsCount={allResourcesSelected ? 'All' : selectedResources.length}
+                  onSelectionChange={handleSelectionChange}
+                  headings={[
+                    { title: 'Name' },
+                    { title: 'Actions' },
+                  ]}
+                  selectable
+                >
+                  {rowMarkup}
+                </IndexTable>
+              )}
+            </LegacyCard>
+          </Layout.Section>
+        </Layout>
       </div>
-      {activeDeleteModal && (
-        <Modal
-          open={activeDeleteModal}
-          onClose={() => setActiveDeleteModal(false)}
-          title="Delete Template"
-          primaryAction={{ content: 'Delete', tone: 'critical', onAction: handleDelete }}
-          secondaryActions={[{ content: 'Cancel', onAction: () => setActiveDeleteModal(false) }]}
-        >
-          <Modal.Section>
-            <TextContainer>
-              Are you sure you want to delete the template "{selectedTemplate?.name}"? This action cannot be undone.
-            </TextContainer>
-          </Modal.Section>
-        </Modal>
-      )}
+
+      <Modal
+        open={activeDeleteModal}
+        onClose={() => setActiveDeleteModal(false)}
+        title="Delete template"
+        primaryAction={{
+          content: 'Delete',
+          tone: 'critical',
+          loading: deleting,
+          onAction: handleDelete,
+        }}
+        secondaryActions={[
+          {
+            content: 'Cancel',
+            onAction: () => setActiveDeleteModal(false),
+          },
+        ]}
+      >
+        <Modal.Section>
+          <TextContainer>
+            Delete “{selectedTemplate?.name}”? This cannot be undone.
+          </TextContainer>
+        </Modal.Section>
+      </Modal>
     </Page>
   );
 };

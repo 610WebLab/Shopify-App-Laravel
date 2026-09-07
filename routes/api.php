@@ -31,8 +31,5 @@ Route::group(['prefix' => 'v1'], function () {
     Route::any('/shipping_method', [ShippingZones::class,'testTableRateShipping']);
     Route::any('/print', [OrderController::class,'printOrderDetailsPackingSlip']);
     Route::any('/template', [OrderController::class,'getTemplatesForOrderDetailPage']);
-    // Route::any('/countries',[CountriesController::class, 'index']);
-    // Route::get('/orders', function() {
-    //     die("weldomeoe";)
-    // });
+    Route::post('/orders/sync', [OrderController::class, 'syncOrderFromPayload']);
 });

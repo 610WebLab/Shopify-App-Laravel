@@ -6,10 +6,11 @@ use App\Models\Localpickup;
 use App\Traits\FetchShippingZoneTrate;
 use App\Models\Order;
 use App\Models\LabelTemplate;
+use App\Models\LabelSetting;
+use App\Services\Shopify\ShopifyAdminClient;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
 use Milon\Barcode\DNS1D;
-use Http;
 use App\Traits\FreeShippingTrait;
 use App\Traits\TableRateTrait;
 use App\Traits\FlatRateTrait;
@@ -69,27 +70,46 @@ trait LocalPickupTrait
 
     public function localShippingLabel($shopifyOrder, $user, $request, $adminPrint = null)
     {
-        // 1) Retrieve shop info (Your custom method)
-        // dd($request->all(), $user->toArray(), $shopifyOrder);
-        $shopInfo = $this->getShopInfo3($user);
-        if (!$shopInfo['shop']) {
-            return response()->json([
-                'status'  => false,
-                'message' => 'Shop not found',
-            ]);
-        }
+        $resolvedFrom = LabelSetting::resolveFromAddress($user);
+        $includeBarcode = true;
+        $logoUrl = '';
+        $website = '';
 
-        // 2) Build "from_address" using the shop info
-        $fromAddress = [
-            'name'    => $shopInfo['shop']['name']           ?? '',
-            'street1' => $shopInfo['shop']['address1']       ?? '',
-            'city'    => $shopInfo['shop']['city']           ?? '',
-            'state'   => $shopInfo['shop']['province_code']  ?? '',
-            'zip'     => $shopInfo['shop']['zip']            ?? '',
-            'country' => $shopInfo['shop']['country_code']   ?? '',
-            'phone'   => $shopInfo['shop']['phone']          ?? '',
-            'email'   => $shopInfo['shop']['email']          ?? '',
-        ];
+        if ($resolvedFrom) {
+            $fromAddress = [
+                'name'    => $resolvedFrom['name'],
+                'street1' => $resolvedFrom['street1'],
+                'city'    => $resolvedFrom['city'],
+                'state'   => $resolvedFrom['state'],
+                'zip'     => $resolvedFrom['zip'],
+                'country' => $resolvedFrom['country'],
+                'phone'   => $resolvedFrom['phone'],
+                'email'   => $resolvedFrom['email'],
+            ];
+            $includeBarcode = $resolvedFrom['include_barcode'];
+            $logoUrl = $resolvedFrom['logo_url'] ?? '';
+            $website = $resolvedFrom['website'] ?? '';
+        } else {
+            $shopInfo = $this->getShopInfo3($user);
+            if (empty($shopInfo['shop'])) {
+                return response()->json([
+                    'status'  => false,
+                    'message' => 'Shop not found',
+                ]);
+            }
+
+            $fromAddress = [
+                'name'    => $shopInfo['shop']['name']           ?? '',
+                'street1' => $shopInfo['shop']['address1']       ?? '',
+                'city'    => $shopInfo['shop']['city']           ?? '',
+                'state'   => $shopInfo['shop']['province_code']  ?? '',
+                'zip'     => $shopInfo['shop']['zip']            ?? '',
+                'country' => $shopInfo['shop']['country_code']   ?? '',
+                'phone'   => $shopInfo['shop']['phone']          ?? '',
+                'email'   => $shopInfo['shop']['email']          ?? '',
+            ];
+            $website = $shopInfo['shop']['domain'] ?? ($shopInfo['shop']['myshopify_domain'] ?? '');
+        }
 
         // 3) Build "to_address" using Shopify order shipping info
         $toAddress = [
@@ -173,9 +193,12 @@ trait LocalPickupTrait
 
 
         // // (Optional) Generate a QR code based on order_number, tracking, etc.
-        $dns1d = new DNS1D;
-        $barcodePng = $dns1d->getBarcodePNG($shopifyOrder['order_number'] ?? '12345', 'C128', 2, 70);
-        $barcode = 'data:image/png;base64,' . $barcodePng;
+        $barcode = '';
+        if ($includeBarcode) {
+            $dns1d = new DNS1D;
+            $barcodePng = $dns1d->getBarcodePNG($shopifyOrder['order_number'] ?? '12345', 'C128', 2, 70);
+            $barcode = 'data:image/png;base64,' . $barcodePng;
+        }
         $order2 = Order::where('id', $request->order_id)->first();
 
         // // 6) Build the array of placeholders => actual values
@@ -200,10 +223,13 @@ trait LocalPickupTrait
                     $total_price += (float) $item['price'];
                 }
         
+                $firstItem = $chunkArray[0] ?? [];
+
                 $placeholders = [
-                    '{logo_url}'       => $template->logo_url ?? '',
-                    '{order_number}'   => $order2->order_no ?? '',
-                    '{order_date}'     => isset($order2->date) ? (new DateTime($order2->date))->format('d-m-Y') : '',
+                    '{logo_url}'        => $logoUrl ?: ($template->logo_url ?? ''),
+                    '{website}'         => $website,
+                    '{order_number}'    => $order2->order_no ?? '',
+                    '{order_date}'      => isset($order2->date) ? (new DateTime($order2->date))->format('d-m-Y') : '',
                     '{tracking_number}' => $trackingNumber,
                     '{from_name}'       => $fromAddress['name'],
                     '{from_street1}'    => $fromAddress['street1'],
@@ -221,10 +247,13 @@ trait LocalPickupTrait
                     '{to_country}'      => $toAddress['country'],
                     '{to_phone}'        => $toAddress['phone'],
                     '{to_email}'        => $toAddress['email'],
-                    '{bar_code}'        => $barcode ?? '',
+                    '{bar_code}'        => $barcode,
                     '{total_price}'     => number_format($total_price + $shipPrice, 2),
                     '{items}'           => implode(', ', array_map(fn($item) => $item['name'] . ' (Qty: ' . $item['quantity'] . ')', $chunkArray)),
-                    '{item_name}'       => $chunkArray[0]['name'] ?? 'N/A' // Handle single or multiple items safely
+                    '{item_name}'       => $firstItem['name'] ?? 'N/A',
+                    '{item_price}'      => isset($firstItem['price']) ? number_format((float) $firstItem['price'], 2) : '',
+                    '{item_quantity}'   => (string) ($firstItem['quantity'] ?? ''),
+                    '{item_weight}'     => isset($firstItem['grams']) ? (string) $firstItem['grams'] : '',
                 ];
         
                 $templateContent[] = str_replace(
@@ -283,40 +312,6 @@ trait LocalPickupTrait
 
     public function getShopInfo3($shop)
     {
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'X-Shopify-Access-Token' => $shop->password,
-        ])->get('https://' . $shop->name . '/admin/api/2025-01/shop.json');
-
-        return $response->json();
-    }
-
-    public function generatePdf($id)
-    {
-        $template = LabelTemplate::findOrFail($id);
-
-        $data = [
-            'order_name' => 'Order ABC',
-            'order_number' => '12345',
-            'item_number' => 'ITM-67890',
-            'price' => '$99.99',
-            'qr_code' => 'data:image/png;base64,' . base64_encode(file_get_contents(public_path('images/qr_code.png')))
-        ];
-
-        $templateContent = str_replace(
-            ['{order_name}', '{order_number}', '{item_number}', '{price}', '{qr_code}'],
-            [$data['order_name'], $data['order_number'], $data['item_number'], $data['price'], $data['qr_code']],
-            $template->content
-        );
-        $pdf = PDF::loadView('pdf.label_template', [
-            'template' => $template,
-            'templateContent' => $templateContent
-        ]);
-        $pdf = PDF::loadView('pdf.label_template', [
-            'template' => $template,
-            'templateContent' => $templateContent
-        ]);
-
-        return $pdf->stream('label_template_' . $template->id . '.pdf');
+        return ShopifyAdminClient::for($shop)->getJson('shop.json');
     }
 }

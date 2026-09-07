@@ -17,6 +17,7 @@ use App\Http\Controllers\CarrierController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\LabelTemplateController;
 use App\Http\Controllers\DimensionController;
+use App\Http\Controllers\LabelSettingController;
 use App\Http\Controllers\PlanController;
 
 
@@ -114,6 +115,9 @@ Route::get('/update-carrier-status/{id}', [CarrierController::class, 'updateCarr
 Route::resource('label-templates', LabelTemplateController::class);
 Route::get('/get-templates', [LabelTemplateController::class,'getTemplates']);
 Route::post('label-templates/{id}/generate-pdf', [LabelTemplateController::class, 'generatePdf']);
+Route::get('/label-settings', [LabelSettingController::class, 'show']);
+Route::get('/label-settings/addresses', [LabelSettingController::class, 'addresses']);
+Route::post('/label-settings', [LabelSettingController::class, 'store']);
 Route::resource('dimension', DimensionController::class);
 Route::post('/sort/dimension/{id}', [DimensionController::class, 'updateDimensionSorting']);
 Route::get('/get-shpping-rates',[OrderController::class,'getShppingRates']);

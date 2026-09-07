@@ -7,6 +7,7 @@ use App\Models\OtherCarrierService;
 use App\Models\Carrier;
 use App\Models\Order;
 use App\Models\Dimension;
+use App\Services\Shopify\ShopifyAdminClient;
 use Http;
 use Log;
 trait GoShippoTrait {
@@ -280,12 +281,8 @@ trait GoShippoTrait {
         }
     }
 
-    public function getShopInfo2($shop){
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'X-Shopify-Access-Token' => $shop->password,
-        ])->get('https://'.$shop->name.'/admin/api/2025-01/shop.json');
-
-      return $response->json();
+    public function getShopInfo2($shop)
+    {
+        return ShopifyAdminClient::for($shop)->getJson('shop.json');
     }
 }

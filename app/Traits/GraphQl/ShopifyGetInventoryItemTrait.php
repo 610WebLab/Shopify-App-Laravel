@@ -1,11 +1,11 @@
-<?php 
+<?php
+
 namespace App\Traits\GraphQl;
 
-use GuzzleHttp\Client;
+use App\Services\Shopify\ShopifyAdminClient;
 
-trait ShopifyGetInventoryItemTrait {
-
-
+trait ShopifyGetInventoryItemTrait
+{
     public function fetchShopifyInventoryItemById($inventoryItemId, $shop)
     {
         $query = '
@@ -31,25 +31,6 @@ trait ShopifyGetInventoryItemTrait {
             }
         }';
 
-        $response = $this->makeGraphQLRequest($query, $shop);
-        return json_decode($response->getBody()->getContents(), true);
-    }
-
-    /**
-     * Make the actual request to Shopify GraphQL API.
-     *
-     * @param string $query
-     * @return \Psr\Http\Message\ResponseInterface
-     */
-    private function makeGraphQLRequest($query, $shop){
-        $client = new Client();
-        $shopifyUrl = "https://".$shop->name."/admin/api/".config('shopify-app.api_version')."/graphql.json";
-        return $client->post($shopifyUrl, [
-            'headers' => [
-                'Content-Type' => 'application/json',
-                'X-Shopify-Access-Token' => $shop->password,
-            ],
-            'json' => ['query' => $query],
-        ]);
+        return ShopifyAdminClient::for($shop)->graphqlJson($query);
     }
 }

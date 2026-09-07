@@ -1,23 +1,49 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Label Template</title>
+    <title>Label Preview{{ !empty($orderLabel) ? ' — ' . $orderLabel : '' }}</title>
     <style>
-        body { font-family: Arial, sans-serif; font-size: 14px; padding: 20px; }
-        .container { border: 1px solid #000; padding: 20px; width: 100%; }
-        .header { text-align: center; margin-bottom: 15px; }
-        .details { margin-top: 10px; }
-        .details p { margin: 4px 0; }
-        .qr-code { margin-top: 15px; text-align: center; }
-        .qr-code img { width: 100px; border: 1px solid #ccc; padding: 4px; }
+        @page {
+            margin: 12mm;
+        }
+        body {
+            font-family: DejaVu Sans, Arial, Helvetica, sans-serif;
+            font-size: 12px;
+            color: #111111;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+        }
+        .preview-shell {
+            width: 100%;
+        }
+        .preview-meta {
+            font-size: 10px;
+            color: #666666;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e5e5e5;
+            padding-bottom: 6px;
+        }
+        .preview-body {
+            width: 100%;
+        }
+        .preview-body img {
+            max-width: 100%;
+        }
+        .preview-body table {
+            border-collapse: collapse;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="details">
-        {!! $templateContent !!}
-        </div>
-
+    <div class="preview-shell">
+        @if (!empty($orderLabel))
+            <div class="preview-meta">Label preview · Order {{ $orderLabel }}</div>
+        @endif
+        <div class="preview-body">
+            {!! $templateContent !!}
         </div>
     </div>
 </body>

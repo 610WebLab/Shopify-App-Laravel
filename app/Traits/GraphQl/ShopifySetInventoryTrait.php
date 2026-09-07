@@ -1,13 +1,13 @@
-<?php 
+<?php
+
 namespace App\Traits\GraphQl;
 
-use GuzzleHttp\Client;
-trait ShopifySetInventoryTrait {
+use App\Services\Shopify\ShopifyAdminClient;
+
+trait ShopifySetInventoryTrait
+{
     public function setInventoryQuantity($inventoryItemId, $locationId, $quantity, $reason = 'correction', $ignoreCompareQuantity = true, $shop)
     {
-        
-        $shopifyApiUrl = "https://".$shop->name."/admin/api/".config('shopify-app.api_version')."/graphql.json"; 
-        
         $mutation = '
         mutation inventorySetQuantities($input: InventorySetQuantitiesInput!) {
             inventorySetQuantities(input: $input) {
@@ -27,7 +27,7 @@ trait ShopifySetInventoryTrait {
                 }
             }
         }';
-        
+
         $variables = [
             'input' => [
                 'name' => 'available',
@@ -43,15 +43,6 @@ trait ShopifySetInventoryTrait {
             ]
         ];
 
-        $response = Http::withHeaders([
-            'X-Shopify-Access-Token' => $shop->password,
-            'Content-Type' => 'application/json',
-        ])->post($shopifyApiUrl, [
-            'query' => $mutation,
-            'variables' => $variables,
-        ]);
-
-        // Return response
-        return $response->json();
+        return ShopifyAdminClient::for($shop)->graphqlJson($mutation, $variables);
     }
 }

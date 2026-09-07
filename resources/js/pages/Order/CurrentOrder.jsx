@@ -27,6 +27,7 @@ import { useToast } from '@shopify/app-bridge-react';
 import {useLocation, useNavigate } from "react-router-dom";
 
 import RatesListingModal from './RatesListingModal'
+import { updateOrderSelection } from './updateOrderSelection'
 
 const CurrentOrder = () => {
   const location = useLocation();
@@ -47,8 +48,6 @@ const CurrentOrder = () => {
 
 
   }
-
-  console.log(location.pathname, "Current order");
 
 
   // console.log(popoverActive, "popoverActive")
@@ -86,8 +85,62 @@ const CurrentOrder = () => {
   const [groupedOptions, setGroupedOptions] = useState([]);
 
   const [boxOptions, setBoxOptions] = useState([])
-  const [boxPackage, setBoxPackage] = useState([]);
+  const [boxPackage, setBoxPackage] = useState({});
   const [selectedPackage, setSelectedPackage] = useState({});
+
+  const syncOrderLocalState = useCallback((orderId, fields) => {
+    setOrders((prev) =>
+      prev.map((order) => (order.id === orderId ? { ...order, ...fields } : order))
+    );
+  }, []);
+
+  const saveOrderSelection = useCallback(async (orderId, fields, options = {}) => {
+    try {
+      const result = await updateOrderSelection(orderId, fields, options);
+      if (!result?.status) {
+        show(result?.message || "Failed to save selection", { duration: 2000, isError: true });
+        return false;
+      }
+      syncOrderLocalState(orderId, result.data || fields);
+      return true;
+    } catch (error) {
+      const message = error?.response?.data?.message || "Failed to save selection";
+      show(message, { duration: 2000, isError: true });
+      return false;
+    }
+  }, [show, syncOrderLocalState]);
+
+  const resolveCarrierOptionsForService = useCallback((selectedId, selectedGroupTitle) => {
+    if (selectedGroupTitle === "Local Shipping" && shippingZonesData) {
+      const matchedZone = shippingZonesData.find(
+        (zone) => zone.id.toString() === selectedId.toString() && zone.status === 1
+      );
+
+      if (matchedZone?.methods) {
+        return matchedZone.methods.map((method) => ({
+          label: method.title,
+          value: method.title,
+          id: method.id.toString(),
+        }));
+      }
+
+      return [];
+    }
+
+    const idv = /\d/.test(selectedId) ? parseInt(selectedId, 10) : selectedId;
+    if (typeof idv === "number" && idv > 0) {
+      const service = otherCarrierServices?.find((item) => item.id === idv);
+      if (service?.carrier) {
+        return service.carrier.map((c) => ({
+          label: c.name,
+          value: c.name,
+          id: c.id.toString(),
+        }));
+      }
+    }
+
+    return [];
+  }, [shippingZonesData, otherCarrierServices]);
 
   const togglePopoverActiveAction = (orderId) => {
     setPopoverActiveAction((prev) => ({
@@ -131,21 +184,33 @@ const CurrentOrder = () => {
       .catch((error) => console.error("Error fetching data:", error))
       .finally(() => setLoading(false));
   }, []);
-  const handlePackageChange = useCallback((value, orderId) => {
+  const handlePackageChange = useCallback(async (value, orderId) => {
+    if (value === "") {
+      return;
+    }
+
+    const labelCount = String(value);
     setSelectedPackage((prev) => ({
       ...prev,
-      [orderId]: value
+      [orderId]: labelCount
     }));
-  });
 
-  const handleBoxChange = useCallback((value, orderId) => {
-    if (value != "") {
-      setBoxPackage((prev) => ({
-        ...prev,
-        [orderId]: parseInt(value)
-      }));
+    await saveOrderSelection(orderId, { label_count: Number(labelCount) }, { reset_carrier: false });
+  }, [saveOrderSelection]);
+
+  const handleBoxChange = useCallback(async (value, orderId) => {
+    if (value === "") {
+      return;
     }
-  }, []);
+
+    const dimensionId = String(value);
+    setBoxPackage((prev) => ({
+      ...prev,
+      [orderId]: dimensionId
+    }));
+
+    await saveOrderSelection(orderId, { dimension_id: Number(dimensionId) }, { reset_carrier: false });
+  }, [saveOrderSelection]);
 
   useEffect(() => {
     fetch(`/dimension?shop=${Config.shop}`)
@@ -157,15 +222,14 @@ const CurrentOrder = () => {
       })
       .then((data) => {
         if (data.status) {
-          setBoxPackage(data.data);
           const formattedOptions = data.data.map((item) => ({
             label: item.name,
-            value: item.id,
+            value: String(item.id),
           }));
-          setBoxOptions((prevOptions) => [...prevOptions, ...formattedOptions]);
+          setBoxOptions(formattedOptions);
         }
       })
-      .catch((err) => console.log(err.message));
+      .catch((err) => {});
   }, []);
   const togglePopoverActive = useCallback((id) => {
     setPopoverActive((prev) => ({
@@ -174,79 +238,49 @@ const CurrentOrder = () => {
     }));
   }, []);
   // Handle selection change for a specific row
-  const handleSelectOptionChange = (id, value, groupTitle) => {
-    console.log("Selected value:", value);
-
-    // Store selected shipping option for each order
+  const handleSelectOptionChange = async (id, value, selectedGroupTitle) => {
     setSelectedOptions((prev) => ({
       ...prev,
       [id]: value,
     }));
 
-    // Toggle the popover state
     setPopoverActive((prev) => ({
       ...prev,
       [id]: !prev[id],
     }));
 
-    // Reset carrier options for the current order only
-    setCarrierOptions((prev) => ({
-      ...prev,
-      [id]: [],
-    }));
-
-    // Store group title per order
     setGroupTitle((prev) => ({
       ...prev,
-      [id]: groupTitle,
+      [id]: selectedGroupTitle,
+    }));
+
+    setCarriers((prev) => ({
+      ...prev,
+      [id]: { id: 0, label: "" },
     }));
 
     const selectedId = value[0];
+    const newCarrierOptions = resolveCarrierOptionsForService(selectedId, selectedGroupTitle);
 
-    if (groupTitle === "Local Shipping" && shippingZonesData) {
-      const matchedZone = shippingZonesData.find(
-        (zone) => zone.id.toString() === selectedId.toString() && zone.status === 1
-      );
+    setCarrierOptions((prev) => ({
+      ...prev,
+      [id]: newCarrierOptions,
+    }));
 
-      if (matchedZone?.methods) {
-        const newCarrierOptions = matchedZone.methods.map((method) => ({
-          label: method.title,
-          value: method.title,
-          id: method.id.toString(),
-        }));
-
-        console.log("New Carrier Options:", newCarrierOptions);
-
-        setCarrierOptions((prev) => ({
-          ...prev,
-          [id]: newCarrierOptions,
-        }));
-      }
-    } else {
-      let idv = /\d/.test(selectedId) ? parseInt(selectedId, 10) : selectedId;
-
+    if (selectedGroupTitle !== "Local Shipping") {
+      const idv = /\d/.test(selectedId) ? parseInt(selectedId, 10) : selectedId;
       setOtherCarrier((prev) => ({
         ...prev,
         [id]: idv,
       }));
-
-      if (typeof idv === "number" && idv > 0) {
-        const service = otherCarrierServices?.find((item) => item.id === idv);
-
-        if (service?.carrier) {
-          const newCarrierOptions = service.carrier.map((c) => ({
-            label: c.name,
-            value: c.name,
-            id: c.id.toString(),
-          }));
-
-          setCarrierOptions((prev) => ({
-            ...prev,
-            [id]: newCarrierOptions, // ✅ Store per order ID
-          }));
-        }
-      }
     }
+
+    await saveOrderSelection(id, {
+      shipping_service: selectedId,
+      group_title: selectedGroupTitle,
+      carrier_id: null,
+      carrier_label: null,
+    }, { reset_carrier: true });
   };
   const handleModalChange = useCallback(() => setActive(!active), [active]);
 
@@ -255,16 +289,37 @@ const CurrentOrder = () => {
   const [selectedLabelTemplate, setSelectedLabelTemplate] = useState([]);
 
 
-  const handleCarrierChange = useCallback((value, orderId) => {
-    const selectedCarrier = carrierOptions[orderId].find(option => option.value == value);
+  const handleCarrierChange = useCallback(async (value, orderId) => {
+    const selectedCarrierOption = carrierOptions[orderId]?.find(option => option.value == value);
+    const carrierPayload = {
+      id: selectedCarrierOption?.id || "",
+      label: value || "",
+    };
+
     setCarriers(prev => ({
       ...prev,
-      [orderId]: {
-        id: selectedCarrier?.id || "",         // Store the selected ID
-        label: value || "", // Store the selected Label
-      }
+      [orderId]: carrierPayload
     }));
-  }, [carrierOptions]);
+
+    await saveOrderSelection(orderId, {
+      carrier_id: carrierPayload.id || null,
+      carrier_label: carrierPayload.label || null,
+    }, { reset_carrier: false });
+  }, [carrierOptions, saveOrderSelection]);
+
+  const handleLabelTemplateChange = useCallback(async (value, orderId) => {
+    if (value === "") {
+      return;
+    }
+
+    const templateId = String(value);
+    setSelectedLabelTemplate((prev) => ({
+      ...prev,
+      [orderId]: templateId,
+    }));
+
+    await saveOrderSelection(orderId, { template_id: Number(templateId) }, { reset_carrier: false });
+  }, [saveOrderSelection]);
 
 
 
@@ -307,7 +362,7 @@ const CurrentOrder = () => {
           if (result.status) {
             const formattedtemplates = result.templates.length > 0 && result.templates.map(template => ({
               label: template?.name,
-              value: template.id,
+              value: String(template.id),
             }));
             setLabelTemplateOptions(formattedtemplates)
           }
@@ -416,21 +471,23 @@ const CurrentOrder = () => {
 
     // Store default label templates
     const defaultTemplates = orders.reduce((acc, order) => {
-      acc[order.id] = order?.template_id ? parseInt(order.template_id, 10) : "";
+      acc[order.id] = order?.template_id ? String(order.template_id) : "";
       return acc;
     }, {});
 
     setSelectedLabelTemplate(defaultTemplates);
 
     const defaultSelectedPackage = orders.reduce((acc, order) => {
-      acc[order.id] = order?.label_count ? order?.label_count : "";
+      acc[order.id] = order?.label_count != null && order.label_count !== ''
+        ? String(order.label_count)
+        : "";
       return acc;
     }, {});
 
     setSelectedPackage(defaultSelectedPackage);
 
     const defaultBoxPackage = orders.reduce((acc, order) => {
-      acc[order.id] = order?.dimension_id ? parseInt(order.dimension_id) : '';
+      acc[order.id] = order?.dimension_id ? String(order.dimension_id) : '';
       return acc;
     }, {});
 
@@ -637,7 +694,7 @@ const CurrentOrder = () => {
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(orders);
   const rowMarkup = orders.map(
     (
-      { id, customer_email, customer_id, label_url, customer_name, date, delivery_method, delivery_status, fullfilement, item_count, labels, order_id, order_name, order_no, payment_status, tags, total, user_id, created_at }, index,) => (
+      { id, customer_email, customer_id, label_url, customer_name, date, delivery_method, delivery_status, fullfilement, item_count, order_id, order_name, order_no, payment_status, tags, total, user_id, created_at }, index,) => (
       <IndexTable.Row
         id={id}
         key={id}
@@ -646,7 +703,6 @@ const CurrentOrder = () => {
         onClick={() => { console.log("Row Click"); }}
       >
         <IndexTable.Cell> <Text variant="bodyMd" fontWeight="bold" as="span">{order_name}</Text></IndexTable.Cell>
-        <IndexTable.Cell>{labels}</IndexTable.Cell>
         <IndexTable.Cell>{formatDate(created_at)}</IndexTable.Cell>
         <IndexTable.Cell>
           <Badge status={statusConfig[payment_status]}>
@@ -713,14 +769,10 @@ const CurrentOrder = () => {
             options={labelTemplateOptions}
             onChange={(value) => {
               if (value !== "") {
-                // Use functional state update to set the selected label template for this id.
-                setSelectedLabelTemplate((prev) => ({
-                  ...prev,
-                  [id]: parseInt(value, 10),
-                }));
+                handleLabelTemplateChange(value, id);
               }
             }}
-            value={selectedLabelTemplate[id]}
+            value={selectedLabelTemplate[id] != null && selectedLabelTemplate[id] !== '' ? String(selectedLabelTemplate[id]) : ''}
             placeholder="Select Label Template"
 
           />
@@ -740,15 +792,18 @@ const CurrentOrder = () => {
                 handlePackageChange(value, id);
               }
             }}
-            value={selectedPackage[id]}
+            value={selectedPackage[id] != null && selectedPackage[id] !== '' ? String(selectedPackage[id]) : ''}
           // disabled={label_url}
           />
         </IndexTable.Cell>
         <IndexTable.Cell>
           <Select
-            options={boxOptions}
+            options={boxOptions.map((option) => ({
+              ...option,
+              value: String(option.value),
+            }))}
             onChange={(value) => { handleBoxChange(value, id) }}
-            value={boxPackage[id]}
+            value={boxPackage[id] != null && boxPackage[id] !== '' ? String(boxPackage[id]) : ''}
             disabled={label_url}
           />
         </IndexTable.Cell>
@@ -858,7 +913,6 @@ const CurrentOrder = () => {
           onSelectionChange={handleSelectionChange}
           headings={[
             { title: "Order" },
-            { title: "Order Label ID" },
             { title: "Date" },
             { title: "Payment status" },
             { title: "Fulfillment status" },
@@ -866,7 +920,7 @@ const CurrentOrder = () => {
             { title: "Shipping Service" },
             { title: "Carrier Account" },
             { title: "Label Template" },
-            { title: 'labels' },
+            { title: 'Labels' },
             { title: 'Dimension' },
             { title: "Customer" },
             { title: "Items" },

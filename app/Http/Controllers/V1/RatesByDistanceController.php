@@ -7,8 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Shippingmethod;
 use App\Models\RatesByDistance;
-use Http;
-use GuzzleHttp\Client;
+use App\Services\Shopify\ShopifyAdminClient;
 
 class RatesByDistanceController extends Controller
 {
@@ -161,7 +160,6 @@ class RatesByDistanceController extends Controller
     {
         $shop = User::where('name', $request->shop)->first();
         if (!empty($shop)) {
-            $endpoint = "https://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/graphql.json";
             $query = <<<GQL
                         {
                         locations(first: 10) {
@@ -187,17 +185,7 @@ class RatesByDistanceController extends Controller
                         }
                         }
                     GQL;
-            $response = Http::withHeaders([
-                'X-Shopify-Access-Token' => $shop->password,
-                'Content-Type' => 'application/json',
-            ])->post($endpoint, [
-                'query' => $query
-            ]);
-            $result = $response->json();
-            // dd($result);
-            // $locations = $result['data']['locations']['edges'];
-
-            // Initialize an empty array to store the node values
+            $result = ShopifyAdminClient::for($shop)->graphqlJson($query);
 
             if (isset($result['data']['locations'])) {
                 $nodeValues = [];

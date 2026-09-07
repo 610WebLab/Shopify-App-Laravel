@@ -21,6 +21,7 @@ use App\Traits\FlatRateTrait;
 use App\Traits\DistanceRatesTrait;
 use App\Models\RatesByDistance;
 use App\Models\OtherCarrierService;
+use App\Services\Shopify\ShopifyAdminClient;
 use Carbon\Carbon;
 use App\Resolvers\ShippingServiceResolver;
 use Exception;
@@ -311,13 +312,13 @@ class ShippingZones extends Controller
     public function updateCheckoutApi(Request $request)
     {
         $shop = User::where('name', $request->shop)->first();
-        $url = "http://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/checkouts/" . $request->token . ".json";
-        $data["token"] = $request->token;
-        $data["shipping_line"] = ["handle" => "local pickup"];
-        $headers = array();
-        $headers['Content-Type'] = 'application/json';
-        $headers['X-Shopify-Access-Token'] = $shop->password;
-        $checkout = Http::withHeaders($headers)->put($url);
+        $data = [
+            'token' => $request->token,
+            'shipping_line' => ['handle' => 'local pickup'],
+        ];
+
+        $checkout = ShopifyAdminClient::for($shop)->put('checkouts/' . $request->token . '.json', $data);
+
         return $checkout->body();
     }
 
@@ -687,33 +688,29 @@ class ShippingZones extends Controller
     {
         $curl = curl_init();
 
-        // Set the URL
         curl_setopt($curl, CURLOPT_URL, $url);
-        // Set the request method to POST
         curl_setopt($curl, CURLOPT_POST, true);
-        // Set the POST data
         curl_setopt($curl, CURLOPT_POSTFIELDS, $data);
-        // Set the headers
         $headers = array(
             "Content-Type: application/json",
             "X-Shopify-Access-Token: {$access_token}"
         );
         curl_setopt($curl, CURLOPT_HTTPHEADER, $headers);
-
-        // Set option to return the response as a string
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
-        // Execute the request and get the response
-        $response = curl_exec($curl);
-
-        // Check for errors
-        if ($response === false) {
-            $error = curl_error($curl);
-            // Handle the error appropriately
-            // ...
+        if (!config('shopify-app.http_verify_ssl')) {
+            curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
         }
 
-        // Close cURL resource
+        $response = curl_exec($curl);
+
+        if ($response === false) {
+            $error = curl_error($curl);
+            curl_close($curl);
+            return json_encode(['errors' => $error]);
+        }
+
         curl_close($curl);
 
         return $response;

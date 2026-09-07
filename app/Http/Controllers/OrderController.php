@@ -15,6 +15,9 @@ use App\Traits\EasyPostTrait;
 use App\Traits\GoShippoTrait;
 use App\Traits\LocalPickupTrait;
 use App\Models\LabelTemplate;
+use App\Jobs\OrdersCreateJob;
+use App\Jobs\OrdersUpdatedJob;
+use App\Services\Shopify\ShopifyAdminClient;
 use Illuminate\Support\Facades\Validator;
 
 
@@ -116,10 +119,13 @@ class OrderController extends Controller
 
     public function getShopifyOrder($order_id, $shop)
     {
-        $response = Http::withHeaders([
-            'Content-Type' => 'application/json',
-            'X-Shopify-Access-Token' => $shop->password,
-        ])->get('https://' . $shop->name . '/admin/api/2024-04/orders/' . $order_id . '.json');
+        $response = ShopifyAdminClient::for($shop)->get('orders/' . $order_id . '.json');
+
+        if ($response->failed()) {
+            throw new \RuntimeException(
+                'Shopify order fetch failed: ' . ($response->json('errors') ?? $response->body())
+            );
+        }
 
         return $response->json();
     }
@@ -192,11 +198,21 @@ class OrderController extends Controller
             return response()->json(['status' => false, "message" => "Order not found"]);
         }
 
-        $shopifyOrder = $this->getShopifyOrder($order->order_id, $user);
-        if (isset($shopifyOrder['order']['id'])) {
-            return $this->localShippingLabel($shopifyOrder['order'], $user, $request);
-        } else {
-            return response()->json(['status' => false, "message" => "Order not found"]);
+        try {
+            $shopifyOrder = $this->getShopifyOrder($order->order_id, $user);
+            if (isset($shopifyOrder['order']['id'])) {
+                return $this->localShippingLabel($shopifyOrder['order'], $user, $request);
+            }
+
+            return response()->json([
+                'status' => false,
+                'message' => $shopifyOrder['errors'] ?? 'Shopify order not found',
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Failed to create shipping label: ' . $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -259,7 +275,6 @@ class OrderController extends Controller
 
     public function orderFulfilled(Request $request, $id)
     {
-        $client = new \GuzzleHttp\Client();
         $shop = User::where('name', $request->shop)->first();
 
         if (!$shop) {
@@ -274,92 +289,75 @@ class OrderController extends Controller
         if (!$order) {
             return response()->json(['status' => false, "message" => "Order not found"]);
         }
-        if ($shop) {
-            $headers = [
-                'X-Shopify-Access-Token: ' . $shop->password,
-                'Content-Type: application/json',
-            ];
 
-            $status = 0;
+        $status = 0;
 
-            if (!empty($order->label_url)) {
-                $fulfillmentOrder = $this->getOrderDetails($order->order_id, $shop);
+        if (!empty($order->label_url)) {
+            $fulfillmentOrder = $this->getOrderDetails($order->order_id, $shop);
 
-                if (isset($fulfillmentOrder->fulfillment_orders) && !empty($fulfillmentOrder->fulfillment_orders)) {
-                    $orderItems = [];
+            if (isset($fulfillmentOrder->fulfillment_orders) && !empty($fulfillmentOrder->fulfillment_orders)) {
+                $orderItems = [];
 
-                    foreach ($fulfillmentOrder->fulfillment_orders[0]->line_items as $item) {
-                        $orderItems[] = [
-                            'id' => $item->id,
-                            'quantity' => $item->quantity,
-                        ];
-                    }
+                foreach ($fulfillmentOrder->fulfillment_orders[0]->line_items as $item) {
+                    $orderItems[] = [
+                        'id' => $item->id,
+                        'quantity' => $item->quantity,
+                    ];
+                }
 
-                    $jsonBody = json_encode([
-                        'fulfillment' => [
-                            'line_items_by_fulfillment_order' => [
-                                [
-                                    'fulfillment_order_id' => $fulfillmentOrder->fulfillment_orders[0]->id,
-                                    'fulfillment_order_line_items' => $orderItems
-                                ]
+                $payload = [
+                    'fulfillment' => [
+                        'line_items_by_fulfillment_order' => [
+                            [
+                                'fulfillment_order_id' => $fulfillmentOrder->fulfillment_orders[0]->id,
+                                'fulfillment_order_line_items' => $orderItems
                             ]
-                        ],
+                        ]
+                    ],
+                ];
 
+                sleep(1);
+
+                $response = ShopifyAdminClient::for($shop)->post('fulfillments.json', $payload);
+                $data = $response->json();
+
+                if ($response->successful() && !empty($data['fulfillment']['line_items'][0]['fulfillment_status'])) {
+                    $orders = Order::where('id', $order->id)->update([
+                        'fullfilement' => $data['fulfillment']['line_items'][0]['fulfillment_status']
                     ]);
 
-                    $url = 'https://' . $shop->name . '/admin/api/' . config('shopify-app.api_version') . '/fulfillments.json';
-
-                    sleep(1);
-
-                    $ch = curl_init();
-                    curl_setopt($ch, CURLOPT_URL, $url);
-                    curl_setopt($ch, CURLOPT_POST, 1);
-                    curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonBody);
-                    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                    $response = curl_exec($ch);
-                    curl_close($ch);
-
-                    $data = json_decode($response, true);
-
-                    if ($data) {
-
-                        $orders = Order::where('id', $order->id)->update(['fullfilement' => $data['fulfillment']['line_items'][0]['fulfillment_status']]);
-
-                        if ($orders) {
-                            $status = 1;
-                        } else {
-                            $status = 0;
-                        }
-                    } else {
-                        return response()->json(['status' => false, 'message' => 'Failed to fulfill order']);
-                    }
+                    $status = $orders ? 1 : 0;
+                } else {
+                    return response()->json([
+                        'status' => false,
+                        'message' => $data['errors'] ?? 'Failed to fulfill order',
+                    ]);
                 }
-            } else {
-                $status = 2;
-            }
-
-
-            if ($status === 1) {
-                return response()->json(['status' => true, 'message' => 'Order Fulfilled Successfully']);
-            } else if ($status === 2) {
-                return response()->json(['status' => false, 'message' => 'Purchase label is not found']);
-            } else {
-                return response()->json(['status' => false, 'message' => 'Failed to fulfill order']);
             }
         } else {
-            return response()->json(['status' => false, 'message' => 'Ecom account connection not established']);
+            $status = 2;
+        }
+
+        if ($status === 1) {
+            return response()->json(['status' => true, 'message' => 'Order Fulfilled Successfully']);
+        } else if ($status === 2) {
+            return response()->json(['status' => false, 'message' => 'Purchase label is not found']);
+        } else {
+            return response()->json(['status' => false, 'message' => 'Failed to fulfill order']);
         }
     }
+
     function getOrderDetails($order_id, $shop)
     {
-        $client = new \GuzzleHttp\Client();
-        $headers['X-Shopify-Access-Token'] = $shop->password;
-        $headers['Content-Type'] = "application/json";
-        $url  = "https://" . $shop->name . "/admin/api/" . config('shopify-app.api_version') . "/orders/" . $order_id . "/fulfillment_orders.json";
-        $response = $client->request('GET', $url, ['headers' => $headers]);
-        $data = json_decode($response->getBody());
-        return $data;
+        $response = ShopifyAdminClient::for($shop)->get('orders/' . $order_id . '/fulfillment_orders.json');
+
+        if ($response->failed()) {
+            throw new \RuntimeException(
+                'Shopify fulfillment orders fetch failed: ' . ($response->json('errors') ?? $response->body())
+            );
+        }
+
+        return json_decode(json_encode($response->json()));
     }
 
 
@@ -460,7 +458,144 @@ class OrderController extends Controller
      */
     public function update(Request $request, $id)
     {
-        //
+        $shop = User::where('name', $request->shop)->first();
+        if (!$shop) {
+            return response()->json(['status' => false, 'message' => 'Shop not found']);
+        }
+
+        $order = Order::where('user_id', $shop->id)->where('id', $id)->first();
+        if (!$order) {
+            return response()->json(['status' => false, 'message' => 'Order not found']);
+        }
+
+        $allowedFields = [
+            'shipping_service',
+            'carrier_id',
+            'carrier_label',
+            'group_title',
+            'template_id',
+            'label_count',
+            'dimension_id',
+        ];
+
+        $payload = $request->only($allowedFields);
+
+        if (array_key_exists('shipping_service', $payload)) {
+            $payload['shipping_service'] = $payload['shipping_service'] !== null && $payload['shipping_service'] !== ''
+                ? (int) $payload['shipping_service']
+                : 0;
+
+            if ($request->boolean('reset_carrier', true)) {
+                $payload['carrier_id'] = null;
+                $payload['carrier_label'] = null;
+            }
+        }
+
+        if (array_key_exists('carrier_id', $payload) && $payload['carrier_id'] !== null && $payload['carrier_id'] !== '') {
+            $payload['carrier_id'] = (int) $payload['carrier_id'];
+        }
+
+        if (array_key_exists('template_id', $payload) && $payload['template_id'] !== null && $payload['template_id'] !== '') {
+            $payload['template_id'] = (int) $payload['template_id'];
+        }
+
+        if (array_key_exists('label_count', $payload) && $payload['label_count'] !== null && $payload['label_count'] !== '') {
+            $payload['label_count'] = (int) $payload['label_count'];
+        }
+
+        if (array_key_exists('dimension_id', $payload) && $payload['dimension_id'] !== null && $payload['dimension_id'] !== '') {
+            $payload['dimension_id'] = (int) $payload['dimension_id'];
+        }
+
+        if (empty($payload)) {
+            return response()->json(['status' => false, 'message' => 'No valid fields to update']);
+        }
+
+        $order->fill($payload);
+        $order->save();
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Order selection updated successfully',
+            'data' => $order->fresh(),
+        ]);
+    }
+
+    /**
+     * Public endpoint to sync a Shopify order payload into the database
+     * by running OrdersCreateJob / OrdersUpdatedJob.
+     *
+     * Body options:
+     * 1) { "shop": "store.myshopify.com", "order": { ...shopify order... } }
+     * 2) { ...shopify order... } with ?shop=store.myshopify.com
+     *
+     * Optional query/body: type=create|update (default: create)
+     */
+    public function syncOrderFromPayload(Request $request)
+    {
+        $shopDomain = $request->input('shop', $request->query('shop'));
+        $type = strtolower((string) $request->input('type', $request->query('type', 'create')));
+
+        if (empty($shopDomain)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'shop is required (body or query)',
+            ], 422);
+        }
+
+        $orderPayload = $request->input('order');
+        if (empty($orderPayload) || !is_array($orderPayload)) {
+            $orderPayload = $request->except(['shop', 'type', 'order']);
+        }
+
+        if (empty($orderPayload) || empty($orderPayload['id'])) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Valid Shopify order payload with id is required',
+            ], 422);
+        }
+
+        $shop = User::where('name', $shopDomain)->first();
+        if (!$shop) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Shop not found',
+            ], 404);
+        }
+
+        $orderData = json_decode(json_encode($orderPayload));
+
+        try {
+            if ($type === 'update') {
+                OrdersUpdatedJob::dispatchSync($shopDomain, $orderData);
+            } else {
+                OrdersCreateJob::dispatchSync($shopDomain, $orderData);
+            }
+
+            $order = Order::where('user_id', $shop->id)
+                ->where('order_id', $orderData->id)
+                ->first();
+
+            if (!$order) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Job executed but order was not saved. Check laravel.log for details.',
+                ], 500);
+            }
+
+            return response()->json([
+                'status' => true,
+                'message' => $type === 'update'
+                    ? 'Order updated successfully via OrdersUpdatedJob'
+                    : 'Order created successfully via OrdersCreateJob',
+                'data' => $order,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
 
     /**

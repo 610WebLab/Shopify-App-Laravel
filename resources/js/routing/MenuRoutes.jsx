@@ -12,6 +12,7 @@ const OrderTabs = lazy(() => import('../pages/Order/OrderTabs'));
 const SettingTabs = lazy(() => import('../pages/settings/SettingTabs'));
 const TemplateCreateEditPage = lazy(() => import('../pages/settings/templates/TemplateCreateEditPage'));
 const TemplateListPage = lazy(() => import('../pages/settings/templates/TemplateListPage'));
+const LabelSettingsPage = lazy(() => import('../pages/settings/label/LabelSettingsPage'));
 
 const DimensionListing = lazy(() => import('../pages/settings/dimension/DimensionListing'));
 const CreateUpdateDimension = lazy(() => import('../pages/settings/dimension/CreateUpdateDimension'));
@@ -36,6 +37,7 @@ const MenuRoutes = () => {
         <Route exact path="/pages/orders" element={<OrderTabs />} />
         <Route exact path="/pages/settings" element={<SettingTabs />} />
         <Route exact path="/pages/templates" element={<TemplateListPage />} />
+        <Route exact path="/pages/templates/label-settings" element={<LabelSettingsPage />} />
         <Route exact path="/pages/templates/create" element={<TemplateCreateEditPage />} />
         <Route exact path="/pages/templates/edit/:id" element={<TemplateCreateEditPage />} />
         <Route exact path="/pages/dimension" element={<DimensionListing />} />

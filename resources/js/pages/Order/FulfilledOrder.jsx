@@ -157,7 +157,7 @@ const FulfilledOrder = () => {
   const { selectedResources, allResourcesSelected, handleSelectionChange } = useIndexResourceState(orders);
   const rowMarkup = orders.map(
     (
-      { id, customer_email, label_url, customer_id, customer_name, date, delivery_method, delivery_status, fullfilement, item_count, labels, order_id, order_name, order_no, payment_status, tags, total, user_id, created_at }, index,) => (
+      { id, customer_email, label_url, customer_id, customer_name, date, delivery_method, delivery_status, fullfilement, item_count, order_id, order_name, order_no, payment_status, tags, total, user_id, created_at }, index,) => (
       <IndexTable.Row
         id={id}
         key={id}
