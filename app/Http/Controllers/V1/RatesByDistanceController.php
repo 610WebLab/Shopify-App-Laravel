@@ -142,12 +142,11 @@ class RatesByDistanceController extends Controller
      */
     public function destroy($id)
     {
-        RatesByDistance::whereIn('id', $id)->delete();
+        RatesByDistance::where('id', $id)->delete();
 
-        $result = [
+        return response()->json([
             'status' => 1,
             'msg' => 'Shipping Method Successfully deleted',
-        ];
-        return json_encode($result);
+        ]);
     }
 }
