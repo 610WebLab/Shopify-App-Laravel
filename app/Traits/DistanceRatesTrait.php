@@ -3,95 +3,254 @@
 namespace App\Traits;
 
 use App\Models\RatesByDistance;
+use App\Models\Shippingzone;
 use App\Traits\FetchShippingZoneTrate;
-use Log;
-use Http;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 trait DistanceRatesTrait
 {
     use FetchShippingZoneTrate;
 
-    public function DistanceRateShipping($country_code, $province_code, $post_code, $address, $price, $weightInGram, $quantity, $lineItem, $shopId)
+    /**
+     * @param  array|string  $destinationOrAddress  Full destination array preferred; string address kept for BC.
+     */
+    public function DistanceRateShipping($country_code, $province_code, $post_code, $destinationOrAddress, $price, $weightInGram, $quantity, $lineItem, $shopId)
     {
-        $zone = json_decode($this->getShippingZones($country_code, $province_code, $post_code, $shopId));
-        if (!empty($zone)) {
+        $destination = $this->normalizeDestinationPoint(
+            $destinationOrAddress,
+            $country_code,
+            $province_code,
+            $post_code
+        );
 
-            return json_encode($this->calCulateDistanceRate($zone->id, $price, $weightInGram, $quantity, $lineItem, $address));
-        } else {
+        $zone = json_decode($this->getShippingZones(
+            $destination['country'],
+            $destination['province'],
+            $destination['postal_code'],
+            $shopId
+        ));
 
-            return response()->json([]);
+        if (empty($zone)) {
+            return json_encode([]);
         }
+
+        return json_encode($this->calCulateDistanceRate(
+            $zone->id,
+            $price,
+            $weightInGram,
+            $quantity,
+            $lineItem,
+            $destination
+        ));
     }
-    public function calCulateDistanceRate($zoneID, $price, $weightInGram, $quantity, $lineItem, $address)
+
+    public function calCulateDistanceRate($zoneID, $price, $weightInGram, $quantity, $lineItem, array $destination)
     {
+        $origin = $this->resolveZoneStoreOriginPoint($zoneID);
+        $destinationPoint = $this->formatDistancePoint($destination);
+
+        if (empty($origin) || empty($destinationPoint)) {
+            Log::info('[DistanceRate] Missing origin or destination point', [
+                'zone_id' => $zoneID,
+                'origin' => $origin,
+                'destination' => $destinationPoint,
+            ]);
+
+            return [];
+        }
+
+        $matrix = $this->getDistanceMatrix($origin, $destinationPoint);
+
+        if (empty($matrix['status']) || !isset($matrix['distance_km'])) {
+            Log::warning('[DistanceRate] Distance Matrix failed - could not calculate distance between points', [
+                'zone_id' => $zoneID,
+                'point_a_origin' => $origin,
+                'point_b_destination' => $destinationPoint,
+                'destination_fields' => $destination,
+                'matrix' => $matrix,
+            ]);
+
+            return [];
+        }
+
+        $distanceKm = (float) $matrix['distance_km'];
+
+        Log::info('[DistanceRate] Total distance between two points', [
+            'zone_id' => $zoneID,
+            'point_a_origin' => $origin,
+            'point_b_destination' => $destinationPoint,
+            'distance_km' => $distanceKm,
+            'distance_text' => $matrix['distance_text'] ?? null,
+            'destination_fields' => $destination,
+        ]);
+
         $distanceRates = RatesByDistance::where('zone_id', $zoneID)->where('status', 1)->get();
         $result = [];
+
         foreach ($distanceRates as $distance) {
-            if ($distance->rates == "price_based_rate") {
-                $priceBasedRate = $this->calculationDistancePriceBasedRate($distance, $price, $quantity, $lineItem, $address);
+            if (!$this->isWithinDistanceLimits($distance, $distanceKm)) {
+                Log::info('[DistanceRate] Rate skipped - outside min/max distance', [
+                    'zone_id' => $zoneID,
+                    'rate_id' => $distance->id,
+                    'rate_title' => $distance->title,
+                    'distance_km' => $distanceKm,
+                    'min_distance' => $distance->min_distance,
+                    'max_distance' => $distance->max_distance,
+                ]);
+                continue;
+            }
+
+            if ($distance->rates == 'price_based_rate') {
+                $priceBasedRate = $this->calculationPriceBasedRate($distance, $price, $distanceKm);
                 if ($priceBasedRate) {
-                    array_push($result, $priceBasedRate);
+                    $result[] = $priceBasedRate;
+                } else {
+                    Log::info('[DistanceRate] Rate skipped - cart price outside min/max order price', [
+                        'zone_id' => $zoneID,
+                        'rate_id' => $distance->id,
+                        'rate_title' => $distance->title,
+                        'cart_price' => $price,
+                        'min_order_price' => $distance->min_order_price,
+                        'max_order_price' => $distance->max_order_price,
+                        'distance_km' => $distanceKm,
+                    ]);
                 }
             } else {
-                $weightBasedRate = $this->calculationDistanceWeightBasedRate($distance, $weightInGram, $quantity, $lineItem, $address);
+                $weightBasedRate = $this->calculationWeightBasedRate($distance, $weightInGram, $distanceKm);
                 if ($weightBasedRate) {
-                    array_push($result, $weightBasedRate);
+                    $result[] = $weightBasedRate;
+                } else {
+                    Log::info('[DistanceRate] Rate skipped - cart weight outside min/max order weight', [
+                        'zone_id' => $zoneID,
+                        'rate_id' => $distance->id,
+                        'rate_title' => $distance->title,
+                        'cart_weight_grams' => $weightInGram,
+                        'min_order_weight' => $distance->min_order_weight,
+                        'max_order_weight' => $distance->max_order_weight,
+                        'weight_unit' => $distance->weight_unit,
+                        'distance_km' => $distanceKm,
+                    ]);
                 }
             }
         }
+
         return $result;
     }
-    /** Fuctionality based on Price Based Rate Start **/
-    public function calculationDistancePriceBasedRate($distance, $price, $quantity, $lineItem, $address)
+
+    /**
+     * Point A: zone store location (lat/lng preferred, else full address).
+     */
+    public function resolveZoneStoreOriginPoint($zoneID): ?string
     {
-        $origin = null;
-        if (!empty($distance->latitude) && !empty($distance->longitude)) {
-            $origin = "{$distance->latitude},{$distance->longitude}";
-        } else {
-            $origin = $distance->street . ", " . $distance->city . ", " . $distance->country_region . ", " . $distance->postal_code;
+        $zone = Shippingzone::with('storeLocation')->find($zoneID);
+        $location = $zone?->storeLocation;
+
+        if (!$location || !$location->is_active) {
+            return null;
         }
-        $location = $this->getDistanceMatrix($origin, $address);
-        if ($location['status'] && isset($location['distance'])) {
-            $distanceKm = str_replace(" km", "", $location['distance']);
-            if (!empty($distance->min_distance) && !empty($distance->max_distance)) {
-                if (floatval($distance->min_distance) > 0 && floatval($distance->max_distance) > 0) {
-                    if (floatval($distanceKm) >= floatval($distance->min_distance) && floatval($distanceKm) <= floatval($distance->max_distance)) {
-                        return $this->calculationPriceBasedRate($distance, $price, $distanceKm);
-                    }
-                }
-            } else if (empty($distance->min_distance) && !empty($distance->max_distance)) {
-                if (floatval($distance->max_distance) > 0) {
-                    if (floatval($distanceKm) <= floatval($distance->max_distance)) {
-                        return $this->calculationPriceBasedRate($distance, $price, $distanceKm);
-                    }
-                }
-            } else if (!empty($distance->min_distance) && empty($distance->max_distance)) {
-                if (floatval($distance->min_distance) > 0) {
-                    if (floatval($distanceKm) >= floatval($distance->min_distance)) {
-                        return $this->calculationPriceBasedRate($distance, $price, $distanceKm);
-                    }
-                }
-            } else {
-                return $this->calculationPriceBasedRate($distance, $price, $distanceKm);
-            }
+
+        if ($location->latitude !== null && $location->longitude !== null
+            && $location->latitude !== '' && $location->longitude !== '') {
+            return trim((string) $location->latitude) . ',' . trim((string) $location->longitude);
         }
+
+        return $this->formatDistancePoint([
+            'address1' => $location->address1,
+            'address2' => $location->address2,
+            'city' => $location->city,
+            'province' => $location->province_code ?: $location->province,
+            'postal_code' => $location->zip,
+            'country' => $location->country_code ?: $location->country,
+        ]);
     }
+
+    /**
+     * Point B: checkout / order destination.
+     */
+    private function normalizeDestinationPoint($destinationOrAddress, $country = '', $province = '', $postalCode = ''): array
+    {
+        if (is_array($destinationOrAddress)) {
+            return [
+                'address1' => $destinationOrAddress['address1'] ?? ($destinationOrAddress['street1'] ?? ''),
+                'address2' => $destinationOrAddress['address2'] ?? ($destinationOrAddress['street2'] ?? ''),
+                'city' => $destinationOrAddress['city'] ?? '',
+                'province' => $destinationOrAddress['province']
+                    ?? ($destinationOrAddress['province_code'] ?? ($destinationOrAddress['state'] ?? '')),
+                'postal_code' => $destinationOrAddress['postal_code']
+                    ?? ($destinationOrAddress['zip'] ?? ''),
+                'country' => $destinationOrAddress['country']
+                    ?? ($destinationOrAddress['country_code'] ?? ''),
+            ];
+        }
+
+        return [
+            'address1' => (string) $destinationOrAddress,
+            'address2' => '',
+            'city' => '',
+            'province' => (string) $province,
+            'postal_code' => (string) $postalCode,
+            'country' => (string) $country,
+        ];
+    }
+
+    private function formatDistancePoint(array $point): ?string
+    {
+        $parts = array_filter([
+            trim((string) ($point['address1'] ?? '')),
+            trim((string) ($point['address2'] ?? '')),
+            trim((string) ($point['city'] ?? '')),
+            trim((string) ($point['province'] ?? '')),
+            trim((string) ($point['postal_code'] ?? '')),
+            trim((string) ($point['country'] ?? '')),
+        ], fn ($value) => $value !== '');
+
+        if (empty($parts)) {
+            return null;
+        }
+
+        return implode(', ', $parts);
+    }
+
+    private function isWithinDistanceLimits($distance, float $distanceKm): bool
+    {
+        $min = floatval($distance->min_distance);
+        $max = floatval($distance->max_distance);
+        $hasMin = !empty($distance->min_distance) && $min > 0;
+        $hasMax = !empty($distance->max_distance) && $max > 0;
+
+        if ($hasMin && $hasMax) {
+            return $distanceKm >= $min && $distanceKm <= $max;
+        }
+
+        if (!$hasMin && $hasMax) {
+            return $distanceKm <= $max;
+        }
+
+        if ($hasMin && !$hasMax) {
+            return $distanceKm >= $min;
+        }
+
+        return true;
+    }
+
     public function calculationPriceBasedRate($distance, $price, $distanceKm)
     {
         $cartPrice = floatval($price) / 100;
+
         if (!empty($distance->min_order_price) && !empty($distance->max_order_price)) {
             if (floatval($distance->min_order_price) > 0 && floatval($distance->max_order_price) > 0 && $cartPrice > 0) {
                 if ($cartPrice >= floatval($distance->min_order_price) && $cartPrice <= floatval($distance->max_order_price)) {
                     return $this->calculateDeliveryRate($distance, $distanceKm);
                 }
             }
-        } else if (empty($distance->min_order_price) && !empty($distance->max_order_price)) {
+        } elseif (empty($distance->min_order_price) && !empty($distance->max_order_price)) {
             if (floatval($distance->max_order_price) > 0 && $cartPrice > 0) {
                 if ($cartPrice <= floatval($distance->max_order_price)) {
                     return $this->calculateDeliveryRate($distance, $distanceKm);
                 }
             }
-        } else if (!empty($distance->min_order_price) && empty($distance->max_order_price)) {
+        } elseif (!empty($distance->min_order_price) && empty($distance->max_order_price)) {
             if (floatval($distance->min_order_price) > 0 && $cartPrice > 0) {
                 if ($cartPrice >= floatval($distance->min_order_price)) {
                     return $this->calculateDeliveryRate($distance, $distanceKm);
@@ -100,49 +259,8 @@ trait DistanceRatesTrait
         } else {
             return $this->calculateDeliveryRate($distance, $distanceKm);
         }
-    }
-    /** Fuctionality based on Price Based Rate end **/
-    /** Fuctionality based on Weight Based Rate Start **/
-    public function calculationDistanceWeightBasedRate($distance, $weight, $quantity, $lineItem, $address)
-    {
-        $origin = null;
-        if (!empty($distance->latitude) && !empty($distance->longitude)) {
-            $origin = "{$distance->latitude},{$distance->longitude}";
-        } else {
-            $origin = $distance->street . ", " . $distance->city . ", " . $distance->country_region . ", " . $distance->postal_code;
-        }
-        $location = $this->getDistanceMatrix($origin, $address);
-        if ($location['status'] && isset($location['distance'])) {
-            $distanceKm = str_replace(" km", "", $location['distance']);
-            // Log::info("Distence in KM weight", ['distance' => $distanceKm]);
-            if (!empty($distance->min_distance) && !empty($distance->max_distance)) {
-                if (floatval($distance->min_distance) > 0 && floatval($distance->max_distance) > 0) {
-                    if (floatval($distanceKm) >= floatval($distance->min_distance) && floatval($distanceKm) <= floatval($distance->max_distance)) {
-                        return $this->calculationWeightBasedRate($distance, $weight, $distanceKm);
-                    }
-                } else {
-                    return;
-                }
-            } else if (empty($distance->min_distance) && !empty($distance->max_distance)) {
-                if (floatval($distance->max_distance) > 0) {
-                    if (floatval($distanceKm) <= floatval($distance->max_distance)) {
-                        return $this->calculationWeightBasedRate($distance, $weight, $distanceKm);
-                    }
-                } else {
-                    return;
-                }
-            } else if (!empty($distance->min_distance) && empty($distance->max_distance)) {
-                if (floatval($distance->min_distance) > 0) {
-                    if (floatval($distanceKm) >= floatval($distance->min_distance)) {
-                        return $this->calculationWeightBasedRate($distance, $weight, $distanceKm);
-                    }
-                } else {
-                    return;
-                }
-            } else {
-                return $this->calculationWeightBasedRate($distance, $weight, $distanceKm);
-            }
-        }
+
+        return null;
     }
 
     public function calculationWeightBasedRate($distance, $weight, $distanceKm)
@@ -150,101 +268,162 @@ trait DistanceRatesTrait
         $cartWeight = floatval($weight);
         $minOrderWeight = $this->convertToGrams($distance->min_order_weight, $distance->weight_unit);
         $maxOrderWeight = $this->convertToGrams($distance->max_order_weight, $distance->weight_unit);
+
         if (!empty($distance->min_order_weight) && !empty($distance->max_order_weight)) {
             if (floatval($distance->min_order_weight) > 0 && floatval($distance->max_order_weight) > 0 && $cartWeight > 0) {
                 if ($cartWeight >= floatval($minOrderWeight) && $cartWeight <= floatval($maxOrderWeight)) {
                     return $this->calculateDeliveryRate($distance, $distanceKm);
                 }
-            } else {
-                return;
             }
-        } else if (empty($distance->min_order_weight) && !empty($distance->max_order_weight)) {
+        } elseif (empty($distance->min_order_weight) && !empty($distance->max_order_weight)) {
             if (floatval($distance->max_order_weight) > 0 && $cartWeight > 0) {
                 if (floatval($maxOrderWeight) >= $cartWeight) {
                     return $this->calculateDeliveryRate($distance, $distanceKm);
                 }
-            } else {
-                return;
             }
-        } else if (!empty($distance->min_order_weight) && empty($distance->max_order_weight)) {
+        } elseif (!empty($distance->min_order_weight) && empty($distance->max_order_weight)) {
             if (floatval($distance->min_order_weight) > 0 && $cartWeight > 0) {
                 if ($cartWeight >= floatval($minOrderWeight)) {
                     return $this->calculateDeliveryRate($distance, $distanceKm);
                 }
-            } else {
-                return;
             }
         } else {
             return $this->calculateDeliveryRate($distance, $distanceKm);
         }
-    }
-    /** Fuctionality based on Weight Based Rate end **/
 
-    /** Common function for both Price and Weight Based Rate start**/
+        return null;
+    }
+
     public function calculateDeliveryRate($distance, $km)
     {
-        $shipping = 0;
-        $result = [];
-        if (!empty($distance->max_delivery_rate) && (float)$distance->max_delivery_rate > 0) {
-            if (!empty($distance->base_delivery_price) && !empty($distance->price_per_kilometer) || empty($distance->base_delivery_price) && !empty($distance->price_per_kilometer)) {
-                $rate = floatval($distance->price_per_kilometer) * floatval($km);
-                $shipping = floatval($distance->max_delivery_rate) >= floatval($rate) ? floatval($rate) : floatval($distance->max_delivery_rate);
-            } else if (!empty($distance->base_delivery_price) && empty($distance->price_per_kilometer)) {
-                $rate = floatval($distance->base_delivery_price);
-                $shipping = floatval($distance->max_delivery_rate) >= floatval($rate) ? floatval($rate) : floatval($distance->max_delivery_rate);
-            } else {
-                $shipping = floatval($distance->max_delivery_rate);
-            }
-            array_push($result, array('status' => 1, 'service_name' => $distance->title, 'description' => $distance->description,  'shipPrice' => $shipping));
+        $basePrice = floatval($distance->base_delivery_price ?? 0);
+        $pricePerKm = floatval($distance->price_per_kilometer ?? 0);
+        $maxEnabled = ($distance->rate_price_limit ?? 'no') === 'yes';
+        $maxDeliveryRate = floatval($distance->max_delivery_rate ?? 0);
+        $applyMaxCap = $maxEnabled && $maxDeliveryRate > 0;
+        $distanceKm = floatval($km);
+        $rawRate = 0;
+        $formula = '';
+        $cappedByMax = false;
+
+        if ($pricePerKm > 0) {
+            $rawRate = $pricePerKm * $distanceKm;
+            $formula = 'price_per_kilometer * distance_km';
+        } elseif ($basePrice > 0) {
+            $rawRate = $basePrice;
+            $formula = 'base_delivery_price';
         } else {
-            if (!empty($distance->base_delivery_price) && !empty($distance->price_per_kilometer) || empty($distance->base_delivery_price) && !empty($distance->price_per_kilometer)) {
-                $shipping = floatval($distance->price_per_kilometer) * floatval($km);
-            } else if (!empty($distance->base_delivery_price) && empty($distance->price_per_kilometer)) {
-                $shipping = floatval($distance->base_delivery_price);
-            } else {
-                $shipping = 0;
-            }
-            array_push($result, array('status' => 1, 'service_name' => $distance->title, 'description' => $distance->description,  'shipPrice' => $shipping));
+            $rawRate = 0;
+            $formula = 'zero (no price params)';
         }
-        return $result;
-    }
-    /** Common function for both Price and Weight Based Rate end**/
 
-    public function getDistanceMatrix($origin, $destination)
-    {
+        if ($applyMaxCap && $rawRate > $maxDeliveryRate) {
+            $shipping = $maxDeliveryRate;
+            $cappedByMax = true;
+        } else {
+            $shipping = $rawRate;
+        }
 
-        $apiKey = config('app.google_map_api_key');
-        $response = Http::get('https://maps.googleapis.com/maps/api/distancematrix/json', [
-            'units'       => 'metric',
-            'origins'     => $origin,
-            'destinations' => $destination,
-            'key'         => $apiKey,
+        $shopifyTotalPriceCents = (int) round($shipping * 100);
+
+        Log::info('[DistanceRate] total_price calculation', [
+            'rate_id' => $distance->id,
+            'rate_title' => $distance->title,
+            'zone_id' => $distance->zone_id,
+            'parameters' => [
+                'distance_km' => $distanceKm,
+                'base_delivery_price' => $basePrice,
+                'price_per_kilometer' => $pricePerKm,
+                'rate_price_limit' => $distance->rate_price_limit ?? 'no',
+                'max_delivery_rate' => $maxDeliveryRate,
+                'max_cap_applied' => $applyMaxCap,
+                'min_distance' => $distance->min_distance,
+                'max_distance' => $distance->max_distance,
+                'rates_type' => $distance->rates,
+                'min_order_price' => $distance->min_order_price,
+                'max_order_price' => $distance->max_order_price,
+                'min_order_weight' => $distance->min_order_weight,
+                'max_order_weight' => $distance->max_order_weight,
+                'weight_unit' => $distance->weight_unit,
+            ],
+            'formula' => $formula,
+            'raw_rate_before_cap' => $rawRate,
+            'capped_by_max_delivery_rate' => $cappedByMax,
+            'shipPrice' => $shipping,
+            'shopify_total_price_cents' => $shopifyTotalPriceCents,
+            'shopify_formula' => 'total_price = shipPrice * 100',
         ]);
 
-        if ($response->successful()) {
-            $data = $response->json();
-            if (isset($data['status']) && $data['status'] === 'OK') {
-                if (isset($data['rows'][0]['elements'][0])) {
-                    $element = $data['rows'][0]['elements'][0];
-                    if (isset($element['status']) && $element['status'] === 'OK') {
-                        if (isset($element['distance']['text'])) {
-                            $distanceText = $element['distance']['text'];
-                            return ['status' => true, "distance" => $distanceText];
-                        } else {
-                            return ['status' => false];
-                        }
-                    } else {
-                        return ['status' => false];
-                    }
-                } else {
-                    return ['status' => false];
-                }
-            } else {
-                return ['status' => false];
-            }
-        } else {
-            return ['status' => false];
+        return [[
+            'status' => 1,
+            'service_name' => $distance->title,
+            'description' => $distance->description,
+            'shipPrice' => $shipping,
+        ]];
+    }
+
+    /**
+     * Google Distance Matrix between Point A (origin) and Point B (destination).
+     */
+    public function getDistanceMatrix($origin, $destination)
+    {
+        $apiKey = config('app.google_map_api_key');
+        if (empty($apiKey) || empty($origin) || empty($destination)) {
+            return ['status' => false, 'message' => 'Missing API key, origin, or destination'];
         }
+
+        $request = Http::asJson();
+        if (!config('shopify-app.http_verify_ssl')) {
+            $request = $request->withoutVerifying();
+        }
+
+        try {
+            $response = $request->get('https://maps.googleapis.com/maps/api/distancematrix/json', [
+                'units' => 'metric',
+                'origins' => $origin,
+                'destinations' => $destination,
+                'key' => $apiKey,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('[DistanceRate] Distance Matrix request failed', [
+                'message' => $e->getMessage(),
+                'origin' => $origin,
+                'destination' => $destination,
+            ]);
+
+            return ['status' => false, 'message' => $e->getMessage()];
+        }
+
+        if (!$response->successful()) {
+            return ['status' => false, 'message' => 'Distance Matrix HTTP error'];
+        }
+
+        $data = $response->json();
+        if (($data['status'] ?? null) !== 'OK') {
+            return [
+                'status' => false,
+                'message' => $data['error_message'] ?? ($data['status'] ?? 'Distance Matrix status not OK'),
+            ];
+        }
+
+        $element = $data['rows'][0]['elements'][0] ?? null;
+        if (!$element || ($element['status'] ?? null) !== 'OK' || !isset($element['distance']['value'])) {
+            return [
+                'status' => false,
+                'message' => $element['status'] ?? 'No route between origin and destination',
+            ];
+        }
+
+        $meters = (float) $element['distance']['value'];
+        $distanceKm = round($meters / 1000, 3);
+
+        return [
+            'status' => true,
+            'distance_km' => $distanceKm,
+            'distance_text' => $element['distance']['text'] ?? ($distanceKm . ' km'),
+            'origin' => $origin,
+            'destination' => $destination,
+        ];
     }
 
     public function convertToGrams($weight, $unit)
@@ -253,17 +432,16 @@ trait DistanceRatesTrait
             return 0;
         }
 
-        // Convert unit to lowercase
-        $unit = strtolower($unit);
-        switch (strtolower($unit)) {
+        $unit = strtolower((string) $unit);
+        switch ($unit) {
             case 'kg':
-                return floatval($weight) * 1000; // 1 kg = 1000 grams
+                return floatval($weight) * 1000;
             case 'lb':
-                return floatval($weight) * 453.592; // 1 lb = 453.592 grams
+                return floatval($weight) * 453.592;
             case 'oz':
-                return floatval($weight) * 28.3495; // 1 oz = 28.3495 grams
+                return floatval($weight) * 28.3495;
             default:
-                return response()->json(['error' => 'Invalid weight unit'], 400);
+                return 0;
         }
     }
 }

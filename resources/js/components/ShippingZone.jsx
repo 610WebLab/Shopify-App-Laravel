@@ -147,12 +147,9 @@ const ShippingZone = () => {
         <>
             {!isLoaded && <Loading />}
             <div className="shipping-zones">
-                <Page fullWidth
+                <Page
                     title="Shipping Zones"
-                    subtitle=""
-                    className="shipping-zones"
                     primaryAction={{ content: 'Add Shipping Zone', onAction: () => { addNewComponent() } }}
-                    fullwidth
                 >
                     {/* {(state) ? <AddShipZone editZoneId={editZoneId} /> : ""} */}
                     {/* {!state ? "" : <AddTableRates />} */}

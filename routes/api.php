@@ -28,6 +28,7 @@ use App\Http\Controllers\OrderController;
 
 Route::group(['prefix' => 'v1'], function () {
     Route::any('/carrier_service', [ShippingZones::class,'apiResonse'])->name('shipping-rates-webhook');
+    Route::post('/test/shipping-rates', [ShippingZones::class, 'testShippingRates'])->name('shipping-rates-test');
     Route::any('/shipping_method', [ShippingZones::class,'testTableRateShipping']);
     Route::any('/print', [OrderController::class,'printOrderDetailsPackingSlip']);
     Route::any('/template', [OrderController::class,'getTemplatesForOrderDetailPage']);

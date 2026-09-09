@@ -174,7 +174,13 @@ trait LocalPickupTrait
             }
         } elseif (str_contains($carrierLabel, "Distance Rate")) {
 
-            $distanceRate = json_decode($this->DistanceRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], $toAddress['street1'], $price, $weight, $quantity, $lineItem, $shopId), true);
+            $distanceRate = json_decode($this->DistanceRateShipping($toAddress['country'], $toAddress['state'], $toAddress['zip'], [
+                'address1' => $toAddress['street1'] ?? '',
+                'city' => $toAddress['city'] ?? '',
+                'province' => $toAddress['state'] ?? '',
+                'postal_code' => $toAddress['zip'] ?? '',
+                'country' => $toAddress['country'] ?? '',
+            ], $price, $weight, $quantity, $lineItem, $shopId), true);
             if ($distanceRate && isset($distanceRate[0][0]['shipPrice'])) {
                 $shipPrice = $distanceRate[0][0]['shipPrice'];
             }

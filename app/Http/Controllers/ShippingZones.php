@@ -21,6 +21,7 @@ use App\Traits\FlatRateTrait;
 use App\Traits\DistanceRatesTrait;
 use App\Models\RatesByDistance;
 use App\Models\OtherCarrierService;
+use App\Models\StoreLocation;
 use App\Services\Shopify\ShopifyAdminClient;
 use Carbon\Carbon;
 use App\Resolvers\ShippingServiceResolver;
@@ -37,6 +38,80 @@ class ShippingZones extends Controller
         $this->shippingServiceResolver = $shippingServiceResolver;
     }
 
+    /**
+     * Test endpoint: same rate engine as Shopify carrier service.
+     * Accepts shop_id or shop domain for easier Postman/curl testing.
+     */
+    public function testShippingRates(Request $request)
+    {
+        $shopId = $request->query('shop_id') ?? $request->input('shop_id');
+        $shopDomain = $request->query('shop') ?? $request->input('shop');
+
+        if (empty($shopId) && !empty($shopDomain)) {
+            $shop = User::where('name', $shopDomain)->first();
+            if (!$shop) {
+                return response()->json([
+                    'status' => false,
+                    'message' => 'Shop not found',
+                    'rates' => [],
+                ], 404);
+            }
+
+            $shopId = $shop->id;
+            $request->merge(['shop_id' => $shopId]);
+            $request->query->set('shop_id', $shopId);
+        }
+
+        if (empty($shopId)) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Pass shop_id or shop (myshopify domain)',
+                'rates' => [],
+            ], 422);
+        }
+
+        if (!$request->has('rate.destination') || !$request->has('rate.items')) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Payload must include rate.destination and rate.items (Shopify carrier-service shape)',
+                'example' => $this->shippingRateTestExamplePayload(),
+                'rates' => [],
+            ], 422);
+        }
+
+        return $this->apiResonse($request);
+    }
+
+    private function shippingRateTestExamplePayload(): array
+    {
+        return [
+            'shop' => 'your-store.myshopify.com',
+            'rate' => [
+                'currency' => 'USD',
+                'destination' => [
+                    'country' => 'US',
+                    'province' => 'CA',
+                    'postal_code' => '94105',
+                    'city' => 'San Francisco',
+                    'address1' => '221B Market Street',
+                ],
+                'items' => [
+                    [
+                        'name' => 'Test Product',
+                        'sku' => 'TEST-001',
+                        'quantity' => 1,
+                        'grams' => 500,
+                        'price' => 2500,
+                        'vendor' => 'Test',
+                        'requires_shipping' => true,
+                        'taxable' => true,
+                        'fulfillment_service' => 'manual',
+                    ],
+                ],
+            ],
+        ];
+    }
+
     public function apiResonse(Request $request)
     {
         try {
@@ -51,10 +126,12 @@ class ShippingZones extends Controller
                 'payload' => $checkOutData,
             ]);
 
+
             if (empty($shopId)) {
                 Log::warning('[CarrierService] shop_id missing in request');
                 return response()->json(['rates' => []]);
             }
+
 
             if (!isset($checkOutData['rate']['destination']) || !isset($checkOutData['rate']['items'])) {
                 Log::warning('[CarrierService] Invalid Shopify rate payload', [
@@ -76,15 +153,6 @@ class ShippingZones extends Controller
             $postCode = $destination['postal_code'] ?? '';
             $address = $destination['address1'] ?? '';
 
-            Log::info('[CarrierService] Destination parsed', [
-                'shop_id' => $shopId,
-                'country' => $country,
-                'state' => $state,
-                'post_code' => $postCode,
-                'address' => $address,
-                'city' => $destination['city'] ?? '',
-            ]);
-
             $lineItem = count($checkOutData['rate']['items']);
             foreach ($checkOutData['rate']['items'] as $checkout) {
                 $price = $price + ($checkout['price'] * $checkout['quantity']);
@@ -92,35 +160,17 @@ class ShippingZones extends Controller
                 $quantity = $quantity + $checkout['quantity'];
             }
 
-            Log::info('[CarrierService] Cart summary', [
-                'shop_id' => $shopId,
-                'line_items' => $lineItem,
-                'total_price_cents' => $price,
-                'total_weight_grams' => $weight,
-                'total_quantity' => $quantity,
-                'currency' => $checkOutData['rate']['currency'] ?? null,
-            ]);
 
             $flateRate = $this->decodeShippingResult($this->flatRateShipping($country, $state, $postCode, $shopId));
             $localPickup = $this->decodeShippingResult($this->localPickUpShipping($country, $state, $postCode, $shopId));
             $freeShips = $this->decodeShippingResult($this->minimumOrderAmount($price, $country, $state, $postCode, $shopId));
             $tableRate = $this->decodeShippingResult($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem, $shopId));
-            $distanceRate = $this->decodeShippingResult($this->DistanceRateShipping($country, $state, $postCode, $address, $price, $weight, $quantity, $lineItem, $shopId));
+            $distanceRate = $this->decodeShippingResult($this->DistanceRateShipping($country, $state, $postCode, $destination, $price, $weight, $quantity, $lineItem, $shopId));
             $easyPostRate = $this->calculateRate('easypost', $shopId, $checkOutData);
             $goShippoRate = $this->calculateRate('shippo', $shopId, $checkOutData);
-
-            Log::info('[CarrierService] Rate sources resolved', [
-                'shop_id' => $shopId,
-                'flat_rate_count' => is_array($flateRate) ? count($flateRate) : 0,
-                'local_pickup_count' => is_array($localPickup) ? count($localPickup) : 0,
-                'free_shipping_count' => is_array($freeShips) ? count($freeShips) : 0,
-                'table_rate_count' => is_array($tableRate) ? count($tableRate) : 0,
-                'distance_rate_count' => is_array($distanceRate) ? count($distanceRate) : 0,
-                'easypost' => $easyPostRate,
-                'goshippo' => $goShippoRate,
-            ]);
-
             $shipData = [];
+
+
         if ($flateRate) {
             foreach ($flateRate as $flat) {
                 if ($flat['status'] == 1) {
@@ -180,16 +230,30 @@ class ShippingZones extends Controller
             }
         }
 
+
+
         if ($distanceRate) {
             foreach ($distanceRate as $distance) {
                 foreach ($distance as $distRate) {
                     if ($distRate['status'] == 1) {
+                        $currency = $checkOutData['rate']['currency'] ?? null;
+                        $shipPrice = $distRate['shipPrice'];
+                        $totalPriceCents = $shipPrice * 100;
+
+                        Log::info('[ShippingZones] Distance rate mapped to Shopify total_price', [
+                            'service_name' => $distRate['service_name'],
+                            'shipPrice' => $shipPrice,
+                            'currency' => $currency,
+                            'total_price' => $totalPriceCents,
+                            'formula' => 'total_price = shipPrice * 100 (Shopify expects cents)',
+                        ]);
+
                         array_push($shipData, $this->createShippingRates(
                             $distRate['service_name'],
                             "shipping_rates_" . rand(),
-                            $distRate['shipPrice'],
+                            $shipPrice,
                             $distRate['description'],
-                            $checkOutData['rate']['currency']
+                            $currency
                         ));
                     }
                 }
@@ -528,6 +592,17 @@ class ShippingZones extends Controller
             $ship_zone->country = implode(",", $country);
             $ship_zone->state = implode(",", $state);
             $ship_zone->zip = $request->postcode;
+
+            $locationId = $request->location_id;
+            if ($locationId === '' || $locationId === null) {
+                $ship_zone->location_id = null;
+            } else {
+                $ownsLocation = StoreLocation::where('id', $locationId)
+                    ->where('user_id', $shop->id)
+                    ->exists();
+                $ship_zone->location_id = $ownsLocation ? (int) $locationId : null;
+            }
+
             $ship_zone->save();
 
             $result = [
@@ -554,8 +629,11 @@ class ShippingZones extends Controller
             if ($shop) {
                 $zoneCount = Shippingzone::count();
                 if (!empty($id)) {
-                    $zone_exist =  Shippingzone::with('zone_method')->where('id', $id)->where('user_id', $shop->id)->first();
-                    if ($zone_exist->zone_region) {
+                    $zone_exist = Shippingzone::with(['zone_method', 'storeLocation'])
+                        ->where('id', $id)
+                        ->where('user_id', $shop->id)
+                        ->first();
+                    if ($zone_exist && $zone_exist->zone_region) {
                         $zone_exist->zone_region = json_decode($zone_exist->zone_region, true);
                     }
 

@@ -17,17 +17,10 @@ class RatesByDistance extends Model
         'shipping_method_id',
         'title',
         'description',
-        'location_name',
-        'country_region',
-        'city',
-        'street',
-        'postal_code',
-        'set_latitude_longitude',
         'rates',
         'rate_price_limit',
         'max_delivery_rate',
-        'latitude',
-        'longitude',
+
         'min_order_price',
         'max_order_price',
         'min_order_weight',
@@ -37,6 +30,6 @@ class RatesByDistance extends Model
         'base_delivery_price',
         'price_per_kilometer',
         'status',
-        'weight_unit'
+        'weight_unit',
     ];
 }

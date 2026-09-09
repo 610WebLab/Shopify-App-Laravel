@@ -19,6 +19,7 @@ import {
     VerticalStack,
     HorizontalStack,
     ButtonGroup,
+    Select as PolarisSelect,
 } from '@shopify/polaris';
 import { DeleteMinor } from '@shopify/polaris-icons';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -63,6 +64,10 @@ const AddShipZone = () => {
     const [zoneName, setZoneName] = useState('');
     const [isZoneChecked, setIsZoneChecked] = useState(true);
     const [postCode, setPostCode] = useState('');
+    const [locationId, setLocationId] = useState('');
+    const [storeLocationOptions, setStoreLocationOptions] = useState([
+        { label: 'Select store location', value: '' },
+    ]);
     const [selectedCountry, setSelectedCountry] = useState([]);
     const [selectedOptions, setSelectedOptions] = useState([]);
     const [selectedZoneOptions, setSelectedZoneOptions] = useState([]);
@@ -119,6 +124,10 @@ const AddShipZone = () => {
 
     const handlePostCodeChange = useCallback((newValue) => {
         setPostCode(newValue);
+    }, []);
+
+    const handleLocationChange = useCallback((value) => {
+        setLocationId(value);
     }, []);
 
     const handleSelect = useCallback((data) => {
@@ -188,6 +197,30 @@ const AddShipZone = () => {
             );
     };
 
+    const getStoreLocations = () => {
+        fetch('/store-locations?shop=' + Config.shop)
+            .then((res) => res.json())
+            .then(
+                (result) => {
+                    if (result.status && Array.isArray(result.data)) {
+                        setStoreLocationOptions([
+                            { label: 'Select store location', value: '' },
+                            ...result.data.map((location) => ({
+                                label: location.label || location.name,
+                                value: String(location.id),
+                            })),
+                        ]);
+                    }
+                },
+                () => {
+                    show('Unable to load store locations. Sync them from Settings first.', {
+                        duration: 2500,
+                        isError: true,
+                    });
+                }
+            );
+    };
+
     const getShipZone = (id) => {
         setIsLoaded(false);
         fetch('/shipzone/' + id + '?shop=' + Config.shop)
@@ -204,6 +237,11 @@ const AddShipZone = () => {
                                 regions.map((region) => region.value).filter(Boolean)
                             );
                             setPostCode(result.zone_exist.zip || '');
+                            setLocationId(
+                                result.zone_exist.location_id
+                                    ? String(result.zone_exist.location_id)
+                                    : ''
+                            );
                         }
                         if (result.zone_mthd) {
                             setShippingMethods(result.zone_mthd);
@@ -273,6 +311,7 @@ const AddShipZone = () => {
                 region: selectedOptions,
                 data: selectedZoneOptions,
                 postcode: postCode,
+                location_id: locationId || null,
                 _token: Config.csrf_token,
             }),
             headers: {
@@ -302,6 +341,7 @@ const AddShipZone = () => {
         isZoneChecked,
         selectedZoneOptions,
         postCode,
+        locationId,
         show,
     ]);
 
@@ -312,6 +352,7 @@ const AddShipZone = () => {
 
     useEffect(() => {
         getCountries();
+        getStoreLocations();
     }, []);
 
     useEffect(() => {
@@ -486,6 +527,22 @@ const AddShipZone = () => {
                                                     helpText="Optional. Enter codes separated by commas or one per line. Leave blank to include all postcodes in the selected regions."
                                                 />
                                             </div>
+                                        </FormLayout>
+                                    </Layout.AnnotatedSection>
+
+                                    <Layout.AnnotatedSection
+                                        id="zone-store-location"
+                                        title="Store location"
+                                        description="Choose the Shopify store location that belongs to this shipping zone."
+                                    >
+                                        <FormLayout>
+                                            <PolarisSelect
+                                                label="Store location"
+                                                options={storeLocationOptions}
+                                                value={locationId}
+                                                onChange={handleLocationChange}
+                                                helpText="Choose a location synced in Settings → Store Locations."
+                                            />
                                         </FormLayout>
                                     </Layout.AnnotatedSection>
                                 </Layout>

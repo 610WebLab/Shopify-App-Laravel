@@ -37,4 +37,9 @@ class Shippingzone extends Model
     {
         return $this->hasMany(RatesByDistance::class,'zone_id');
     }
+
+    public function storeLocation()
+    {
+        return $this->belongsTo(StoreLocation::class, 'location_id');
+    }
 }

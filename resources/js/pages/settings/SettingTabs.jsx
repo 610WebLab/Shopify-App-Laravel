@@ -2,12 +2,13 @@ import React from 'react'
 import { LegacyCard, Tabs, Page } from '@shopify/polaris';
 import { useState, useCallback } from 'react';
 import DimensionListing from './dimension/DimensionListing';
+import StoreLocationsPage from './location/StoreLocationsPage';
 import { useLocation } from 'react-router-dom';
 
 export default function SettingTabs() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
-  const defaultTab = queryParams.get('tab') || 'dimension';
+  const defaultTab = queryParams.get('tab') || 'store-locations';
 
   const handleTabChange = useCallback(
     (selectedTabIndex) => setSelected(selectedTabIndex),
@@ -15,6 +16,13 @@ export default function SettingTabs() {
   );
 
   const tabs = [
+    {
+      id: 'store-locations',
+      content: 'Store Locations',
+      element: <StoreLocationsPage />,
+      accessibilityLabel: 'Store Locations',
+      panelID: 'store-locations-content',
+    },
     {
       id: 'dimension',
       content: 'Dimension Setting',

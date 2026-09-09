@@ -18,6 +18,7 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\LabelTemplateController;
 use App\Http\Controllers\DimensionController;
 use App\Http\Controllers\LabelSettingController;
+use App\Http\Controllers\StoreLocationController;
 use App\Http\Controllers\PlanController;
 
 
@@ -104,8 +105,6 @@ Route::prefix('v1')->group(function () {
     Route::resource('rates_by_distance', RatesByDistanceController::class)->only([
         'show','store','update','destroy'
     ]);
-
-    Route::get('/locations', [RatesByDistanceController::class, 'getShopLocations']);
 });
 Route::resource('/orders',OrderController::class);
 Route::resource('/other-carrier-service',OtherCarrierServiceController::class);
@@ -118,6 +117,8 @@ Route::post('label-templates/{id}/generate-pdf', [LabelTemplateController::class
 Route::get('/label-settings', [LabelSettingController::class, 'show']);
 Route::get('/label-settings/addresses', [LabelSettingController::class, 'addresses']);
 Route::post('/label-settings', [LabelSettingController::class, 'store']);
+Route::get('/store-locations', [StoreLocationController::class, 'index']);
+Route::post('/store-locations/sync', [StoreLocationController::class, 'sync']);
 Route::resource('dimension', DimensionController::class);
 Route::post('/sort/dimension/{id}', [DimensionController::class, 'updateDimensionSorting']);
 Route::get('/get-shpping-rates',[OrderController::class,'getShppingRates']);

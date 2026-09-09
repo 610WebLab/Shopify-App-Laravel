@@ -7,7 +7,6 @@ use Illuminate\Http\Request;
 use App\Models\User;
 use App\Models\Shippingmethod;
 use App\Models\RatesByDistance;
-use App\Services\Shopify\ShopifyAdminClient;
 
 class RatesByDistanceController extends Controller
 {
@@ -108,20 +107,15 @@ class RatesByDistanceController extends Controller
     {
         $shop = User::where('name', $request->shop)->first();
         if ($shop) {
+            $ratePriceLimit = $request->rate_price_limit === 'yes' ? 'yes' : 'no';
+            $maxDeliveryRate = $ratePriceLimit === 'yes' ? $request->max_delivery_rate : null;
+
             $saveData = [
                 'title' => $request->rate_name,
                 'description' => $request->description,
-                'location_name' => $request->location_name,
-                'country_region' => $request->country_region,
-                'city' => $request->city,
-                'street' => $request->street,
-                'postal_code' => $request->postal_code,
-                'set_latitude_longitude' => $request->set_latitude_longitude,
                 'rates' => $request->rates,
-                'rate_price_limit' => $request->rate_price_limit,
-                'max_delivery_rate' => $request->max_delivery_rate,
-                'latitude' => $request->latitude,
-                'longitude' => $request->longitude,
+                'rate_price_limit' => $ratePriceLimit,
+                'max_delivery_rate' => $maxDeliveryRate,
                 'min_order_price' => $request->min_order_price,
                 'max_order_price' => $request->max_order_price,
                 'min_order_weight' => $request->min_order_weight,
@@ -155,49 +149,5 @@ class RatesByDistanceController extends Controller
             'msg' => 'Shipping Method Successfully deleted',
         ];
         return json_encode($result);
-    }
-    public function getShopLocations(Request $request)
-    {
-        $shop = User::where('name', $request->shop)->first();
-        if (!empty($shop)) {
-            $query = <<<GQL
-                        {
-                        locations(first: 10) {
-                            edges {
-                            node {
-                                id
-                                name
-                                address {
-                                formatted
-                                address1
-                                address2
-                                city
-                                province
-                                provinceCode
-                                country
-                                countryCode
-                                latitude
-                                longitude
-                                zip
-                                }
-                            }
-                            }
-                        }
-                        }
-                    GQL;
-            $result = ShopifyAdminClient::for($shop)->graphqlJson($query);
-
-            if (isset($result['data']['locations'])) {
-                $nodeValues = [];
-                foreach ($result['data']['locations']['edges'] as $location) {
-                    $nodeValues[] = $location['node'];
-                }
-                return response()->json(['status' => true, "data" =>  $nodeValues]);
-            } else {
-                return response()->json(['status' => false, "message" => "Location not found"]);
-            }
-        } else {
-            return response()->json(['status' => false, "message" => "Shop not found"]);
-        }
     }
 }
