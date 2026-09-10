@@ -180,7 +180,13 @@ trait LocalPickupTrait
                 'province' => $toAddress['state'] ?? '',
                 'postal_code' => $toAddress['zip'] ?? '',
                 'country' => $toAddress['country'] ?? '',
-            ], $price, $weight, $quantity, $lineItem, $shopId), true);
+            ], $price, $weight, $quantity, $lineItem, $shopId, [
+                'address1' => $fromAddress['street1'] ?? '',
+                'city' => $fromAddress['city'] ?? '',
+                'province' => $fromAddress['state'] ?? '',
+                'postal_code' => $fromAddress['zip'] ?? '',
+                'country' => $fromAddress['country'] ?? '',
+            ]), true);
             if ($distanceRate && isset($distanceRate[0][0]['shipPrice'])) {
                 $shipPrice = $distanceRate[0][0]['shipPrice'];
             }

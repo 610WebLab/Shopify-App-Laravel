@@ -148,6 +148,7 @@ class ShippingZones extends Controller
             $lineItem = 0;
 
             $destination = $checkOutData['rate']['destination'];
+            $origin = $checkOutData['rate']['origin'] ?? null;
             $country = $destination['country'] ?? '';
             $state = $destination['province'] ?? '';
             $postCode = $destination['postal_code'] ?? '';
@@ -157,7 +158,7 @@ class ShippingZones extends Controller
             foreach ($checkOutData['rate']['items'] as $checkout) {
                 $price = $price + ($checkout['price'] * $checkout['quantity']);
                 $weight = $weight + ($checkout['grams'] * $checkout['quantity']);
-                $quantity = $quantity + $checkout['quantity'];
+                $quantity = $quantity + ($checkout['quantity']);
             }
 
 
@@ -165,7 +166,7 @@ class ShippingZones extends Controller
             $localPickup = $this->decodeShippingResult($this->localPickUpShipping($country, $state, $postCode, $shopId));
             $freeShips = $this->decodeShippingResult($this->minimumOrderAmount($price, $country, $state, $postCode, $shopId));
             $tableRate = $this->decodeShippingResult($this->tableRateShipping($country, $state, $postCode, $price, $weight, $quantity, $lineItem, $shopId));
-            $distanceRate = $this->decodeShippingResult($this->DistanceRateShipping($country, $state, $postCode, $destination, $price, $weight, $quantity, $lineItem, $shopId));
+            $distanceRate = $this->decodeShippingResult($this->DistanceRateShipping($country, $state, $postCode, $destination, $price, $weight, $quantity, $lineItem, $shopId, $origin));
             $easyPostRate = $this->calculateRate('easypost', $shopId, $checkOutData);
             $goShippoRate = $this->calculateRate('shippo', $shopId, $checkOutData);
             $shipData = [];

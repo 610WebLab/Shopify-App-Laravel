@@ -14,8 +14,9 @@ trait DistanceRatesTrait
 
     /**
      * @param  array|string  $destinationOrAddress  Full destination array preferred; string address kept for BC.
+     * @param  array|null  $originOrAddress  Shopify rate.origin fallback when zone has no store location.
      */
-    public function DistanceRateShipping($country_code, $province_code, $post_code, $destinationOrAddress, $price, $weightInGram, $quantity, $lineItem, $shopId)
+    public function DistanceRateShipping($country_code, $province_code, $post_code, $destinationOrAddress, $price, $weightInGram, $quantity, $lineItem, $shopId, $originOrAddress = null)
     {
         $destination = $this->normalizeDestinationPoint(
             $destinationOrAddress,
@@ -23,6 +24,10 @@ trait DistanceRatesTrait
             $province_code,
             $post_code
         );
+
+        $fallbackOrigin = is_array($originOrAddress)
+            ? $this->normalizeDestinationPoint($originOrAddress)
+            : null;
 
         $zone = json_decode($this->getShippingZones(
             $destination['country'],
@@ -41,24 +46,37 @@ trait DistanceRatesTrait
             $weightInGram,
             $quantity,
             $lineItem,
-            $destination
+            $destination,
+            $fallbackOrigin
         ));
     }
 
-    public function calCulateDistanceRate($zoneID, $price, $weightInGram, $quantity, $lineItem, array $destination)
+    public function calCulateDistanceRate($zoneID, $price, $weightInGram, $quantity, $lineItem, array $destination, ?array $fallbackOrigin = null)
     {
-        $origin = $this->resolveZoneStoreOriginPoint($zoneID);
+        $originResolution = $this->resolveOriginPoint($zoneID, $fallbackOrigin);
+        $origin = $originResolution['point'] ?? null;
         $destinationPoint = $this->formatDistancePoint($destination);
 
         if (empty($origin) || empty($destinationPoint)) {
             Log::info('[DistanceRate] Missing origin or destination point', [
                 'zone_id' => $zoneID,
                 'origin' => $origin,
+                'origin_source' => $originResolution['source'] ?? null,
+                'origin_reason' => $originResolution['reason'] ?? null,
                 'destination' => $destinationPoint,
+                'destination_fields' => $destination,
+                'hint' => 'Assign an active store location on the shipping zone, or ensure Shopify rate.origin is present.',
             ]);
 
             return [];
         }
+
+        Log::info('[DistanceRate] Using origin/destination points', [
+            'zone_id' => $zoneID,
+            'origin' => $origin,
+            'origin_source' => $originResolution['source'] ?? null,
+            'destination' => $destinationPoint,
+        ]);
 
         $matrix = $this->getDistanceMatrix($origin, $destinationPoint);
 
@@ -139,30 +157,109 @@ trait DistanceRatesTrait
     }
 
     /**
-     * Point A: zone store location (lat/lng preferred, else full address).
+     * Point A: zone store location first; Shopify rate.origin as fallback.
      */
-    public function resolveZoneStoreOriginPoint($zoneID): ?string
+    public function resolveOriginPoint($zoneID, ?array $fallbackOrigin = null): array
     {
         $zone = Shippingzone::with('storeLocation')->find($zoneID);
-        $location = $zone?->storeLocation;
 
-        if (!$location || !$location->is_active) {
-            return null;
+        if (!$zone) {
+            return ['point' => null, 'source' => null, 'reason' => 'zone_not_found'];
         }
 
-        if ($location->latitude !== null && $location->longitude !== null
-            && $location->latitude !== '' && $location->longitude !== '') {
-            return trim((string) $location->latitude) . ',' . trim((string) $location->longitude);
+        if (empty($zone->location_id)) {
+            $fallbackPoint = $fallbackOrigin ? $this->formatDistancePoint($fallbackOrigin) : null;
+            if ($fallbackPoint) {
+                return [
+                    'point' => $fallbackPoint,
+                    'source' => 'shopify_rate_origin',
+                    'reason' => 'zone_has_no_store_location',
+                ];
+            }
+
+            return [
+                'point' => null,
+                'source' => null,
+                'reason' => 'zone_has_no_store_location_and_no_shopify_origin',
+            ];
         }
 
-        return $this->formatDistancePoint([
+        $location = $zone->storeLocation;
+        if (!$location) {
+            $fallbackPoint = $fallbackOrigin ? $this->formatDistancePoint($fallbackOrigin) : null;
+            if ($fallbackPoint) {
+                return [
+                    'point' => $fallbackPoint,
+                    'source' => 'shopify_rate_origin',
+                    'reason' => 'store_location_record_missing',
+                ];
+            }
+
+            return [
+                'point' => null,
+                'source' => null,
+                'reason' => 'store_location_record_missing',
+            ];
+        }
+
+        if (!$location->is_active) {
+            $fallbackPoint = $fallbackOrigin ? $this->formatDistancePoint($fallbackOrigin) : null;
+            if ($fallbackPoint) {
+                return [
+                    'point' => $fallbackPoint,
+                    'source' => 'shopify_rate_origin',
+                    'reason' => 'store_location_inactive',
+                ];
+            }
+
+            return [
+                'point' => null,
+                'source' => null,
+                'reason' => 'store_location_inactive',
+            ];
+        }
+
+        $point = $this->formatDistancePoint([
             'address1' => $location->address1,
             'address2' => $location->address2,
             'city' => $location->city,
             'province' => $location->province_code ?: $location->province,
             'postal_code' => $location->zip,
             'country' => $location->country_code ?: $location->country,
+            'latitude' => $location->latitude,
+            'longitude' => $location->longitude,
         ]);
+
+        if ($point) {
+            return [
+                'point' => $point,
+                'source' => 'zone_store_location',
+                'reason' => null,
+            ];
+        }
+
+        $fallbackPoint = $fallbackOrigin ? $this->formatDistancePoint($fallbackOrigin) : null;
+        if ($fallbackPoint) {
+            return [
+                'point' => $fallbackPoint,
+                'source' => 'shopify_rate_origin',
+                'reason' => 'store_location_has_no_usable_address',
+            ];
+        }
+
+        return [
+            'point' => null,
+            'source' => null,
+            'reason' => 'store_location_has_no_usable_address',
+        ];
+    }
+
+    /**
+     * @deprecated Use resolveOriginPoint(); kept for BC.
+     */
+    public function resolveZoneStoreOriginPoint($zoneID): ?string
+    {
+        return $this->resolveOriginPoint($zoneID)['point'] ?? null;
     }
 
     /**
@@ -181,6 +278,8 @@ trait DistanceRatesTrait
                     ?? ($destinationOrAddress['zip'] ?? ''),
                 'country' => $destinationOrAddress['country']
                     ?? ($destinationOrAddress['country_code'] ?? ''),
+                'latitude' => $destinationOrAddress['latitude'] ?? null,
+                'longitude' => $destinationOrAddress['longitude'] ?? null,
             ];
         }
 
@@ -191,11 +290,19 @@ trait DistanceRatesTrait
             'province' => (string) $province,
             'postal_code' => (string) $postalCode,
             'country' => (string) $country,
+            'latitude' => null,
+            'longitude' => null,
         ];
     }
 
     private function formatDistancePoint(array $point): ?string
     {
+        $lat = $point['latitude'] ?? null;
+        $lng = $point['longitude'] ?? null;
+        if ($lat !== null && $lng !== null && $lat !== '' && $lng !== '') {
+            return trim((string) $lat) . ',' . trim((string) $lng);
+        }
+
         $parts = array_filter([
             trim((string) ($point['address1'] ?? '')),
             trim((string) ($point['address2'] ?? '')),
