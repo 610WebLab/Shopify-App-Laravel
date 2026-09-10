@@ -69,7 +69,7 @@ const PendingOrder = () => {
   const [selectedserviceId, setSelectedServiceId] = useState(null);
   const [selectedCarrierId, setSelectedCarrierId] = useState(null);
   const [labelTemplateOptions, setLabelTemplateOptions] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [purchasingLabels, setPurchasingLabels] = useState({});
   const [toastMessage, setToastMessage] = useState(null);
   const [toastError, setToastError] = useState(false);
   const [shippingZonesData, setShippingZonesData] = useState([]);
@@ -534,7 +534,10 @@ const PendingOrder = () => {
     };
 
 
-    setIsSubmitting(true);
+    setPurchasingLabels((prev) => ({
+      ...prev,
+      [order_id]: true,
+    }));
 
     try {
       const response = await axios.post(`/create-local-shipping-label?shop=${Config.shop}`, requestData);
@@ -569,7 +572,10 @@ const PendingOrder = () => {
         // showToast("Network error. Please try again.", true);
       }
     } finally {
-      setIsSubmitting(false);
+      setPurchasingLabels((prev) => ({
+        ...prev,
+        [order_id]: false,
+      }));
     }
   }
 
@@ -845,8 +851,8 @@ const PendingOrder = () => {
                   ? (
                     <Button
                       primary
-                      loading={isSubmitting}
-                      disabled={isSubmitting}
+                      loading={!!purchasingLabels[id]}
+                      disabled={!!purchasingLabels[id]}
                       onClick={() => handlePurchaseLabel(
                         id,
                         selectedOptions[id],

@@ -74,7 +74,7 @@ const CurrentOrder = () => {
   const [selectedserviceId, setSelectedServiceId] = useState(null);
   const [selectedCarrierId, setSelectedCarrierId] = useState(null);
   const [labelTemplateOptions, setLabelTemplateOptions] = useState([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [purchasingLabels, setPurchasingLabels] = useState({});
   const [toastMessage, setToastMessage] = useState(null);
   const [toastError, setToastError] = useState(false);
   const [shippingZonesData, setShippingZonesData] = useState([]);
@@ -546,7 +546,10 @@ const CurrentOrder = () => {
     };
 
 
-    setIsSubmitting(true);
+    setPurchasingLabels((prev) => ({
+      ...prev,
+      [order_id]: true,
+    }));
 
     try {
       const response = await axios.post(`/create-local-shipping-label?shop=${Config.shop}`, requestData);
@@ -582,7 +585,10 @@ const CurrentOrder = () => {
         // showToast("Network error. Please try again.", true);
       }
     } finally {
-      setIsSubmitting(false);
+      setPurchasingLabels((prev) => ({
+        ...prev,
+        [order_id]: false,
+      }));
     }
   }
 
@@ -871,7 +877,8 @@ const CurrentOrder = () => {
                     : fullfilement === "Unfulfilled"
                       ? [
                         {
-                          content: "Purchase Label",
+                          content: purchasingLabels[id] ? "Processing..." : "Purchase Label",
+                          disabled: !!purchasingLabels[id],
                           onAction: () => handlePurchaseLabel(id, selectedOptions[id], carriers[id]?.id, carriers[id]?.label, selectedLabelTemplate[id], groupTitle[id], selectedPackage[id], boxPackage[id]),
                         },
                       ]
